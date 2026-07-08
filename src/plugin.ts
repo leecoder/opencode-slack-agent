@@ -19,6 +19,7 @@ let sessionsPath: string = "";
 let sessions: Record<string, { sessionId: string; channel: string; lastUsed: number; directory?: string }> = {};
 let defaultDirectory: string = "";
 let allowedUsers: Set<string> | null = null;
+let allowlistReady = true;
 
 type PendingPermission = {
   permissionId: string;
@@ -597,7 +598,7 @@ function startWorker(env: Record<string, string>) {
 
   worker.on("message", (msg: any) => {
     if (msg?.type === "slack_event") {
-      const isAllowed = !allowedUsers || allowedUsers.has(msg.user);
+      const isAllowed = !allowedUsers || !allowlistReady || allowedUsers.has(msg.user);
       const isThreadReply = msg.threadTs !== msg.messageTs;
 
       if (!isAllowed && !isThreadReply) {
@@ -612,6 +613,7 @@ function startWorker(env: Record<string, string>) {
         }
         log(`resolved email users: ${msg.users.join(", ")}`);
       }
+      allowlistReady = true;
     }
   });
 
@@ -691,6 +693,9 @@ const pluginModule: PluginModule = {
     const caCerts = (options?.NODE_EXTRA_CA_CERTS as string) || process.env.NODE_EXTRA_CA_CERTS || "";
     if (caCerts) workerEnv.NODE_EXTRA_CA_CERTS = caCerts;
 
+    if (emailsToResolve.length > 0) {
+      allowlistReady = false;
+    }
     startWorker(workerEnv);
     if (emailsToResolve.length > 0) {
       sendIPC({ type: "resolve_emails", emails: emailsToResolve });

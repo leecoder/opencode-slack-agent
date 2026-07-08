@@ -12444,6 +12444,7 @@ var sessionsPath = "";
 var sessions = {};
 var defaultDirectory = "";
 var allowedUsers = null;
+var allowlistReady = true;
 var pendingPermissions = /* @__PURE__ */ new Map();
 var pendingQuestions = /* @__PURE__ */ new Map();
 function log(m) {
@@ -12946,7 +12947,7 @@ function startWorker(env) {
   });
   worker.on("message", (msg) => {
     if (msg?.type === "slack_event") {
-      const isAllowed = !allowedUsers || allowedUsers.has(msg.user);
+      const isAllowed = !allowedUsers || !allowlistReady || allowedUsers.has(msg.user);
       const isThreadReply = msg.threadTs !== msg.messageTs;
       if (!isAllowed && !isThreadReply) {
         log(`blocked user: ${msg.user} (new thread)`);
@@ -12960,6 +12961,7 @@ function startWorker(env) {
         }
         log(`resolved email users: ${msg.users.join(", ")}`);
       }
+      allowlistReady = true;
     }
   });
   worker.on("exit", (code) => {
@@ -13028,6 +13030,9 @@ var pluginModule = {
     };
     const caCerts = options?.NODE_EXTRA_CA_CERTS || process.env.NODE_EXTRA_CA_CERTS || "";
     if (caCerts) workerEnv.NODE_EXTRA_CA_CERTS = caCerts;
+    if (emailsToResolve.length > 0) {
+      allowlistReady = false;
+    }
     startWorker(workerEnv);
     if (emailsToResolve.length > 0) {
       sendIPC({ type: "resolve_emails", emails: emailsToResolve });
