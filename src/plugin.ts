@@ -7,6 +7,8 @@ import { fileURLToPath } from "url";
 
 const LOG_FILE = "/tmp/slack-agent-plugin.log";
 const SLACK_MSG_LIMIT = 3900;
+const RESPONSE_STALL_MS = 45_000;
+const RESPONSE_STALL_NOTIFY_INTERVAL_MS = 60_000;
 
 let initialized = false;
 let worker: ChildProcess | null = null;
@@ -256,6 +258,8 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
     }
 
     let streamDone = false;
+    let lastStreamActivityAt = Date.now();
+    let lastDelayNotifiedAt = 0;
 
     const timeout = setTimeout(() => {
       log("SSE timeout (6min)");
@@ -284,6 +288,20 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
       } catch {}
     }, 2000);
 
+    const delayCheck = setInterval(() => {
+      if (streamDone) { clearInterval(delayCheck); return; }
+      const now = Date.now();
+      const stalledMs = now - lastStreamActivityAt;
+      const shouldNotify = stalledMs >= RESPONSE_STALL_MS
+        && (lastDelayNotifiedAt === 0 || now - lastDelayNotifiedAt >= RESPONSE_STALL_NOTIFY_INTERVAL_MS);
+      if (shouldNotify) {
+        const stalledSec = Math.floor(stalledMs / 1000);
+        slackSend(channel, `⏳ 응답이 지연되고 있어요 (${stalledSec}초 경과). 계속 처리 중입니다.`, threadTs);
+        lastDelayNotifiedAt = now;
+        log(`response stall detected: session=${sessionId} stalled=${stalledSec}s`);
+      }
+    }, 5000);
+
     try {
       for await (const event of stream) {
         if (streamDone) break;
@@ -293,6 +311,8 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
         if (evt.type === "message.part.updated") {
           const part = evt.properties?.part;
           if (!part || part.sessionID !== sessionId) continue;
+          lastStreamActivityAt = Date.now();
+          lastDelayNotifiedAt = 0;
 
           const partKey = `${part.type}:${part.id}`;
 
@@ -349,12 +369,16 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
         }
 
         if (evt.type === "session.idle" && evt.properties?.sessionID === sessionId) {
+          lastStreamActivityAt = Date.now();
+          lastDelayNotifiedAt = 0;
           log(`session ${sessionId} idle via SSE`);
           streamDone = true;
           break;
         }
 
         if (evt.type === "todo.updated" && evt.properties?.sessionID === sessionId) {
+          lastStreamActivityAt = Date.now();
+          lastDelayNotifiedAt = 0;
           const todos = evt.properties.todos || [];
           if (todos.length > 0) {
             let msg = "📋 *Plan*\n";
@@ -379,6 +403,7 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
       streamDone = true;
       clearTimeout(timeout);
       clearInterval(idleCheck);
+      clearInterval(delayCheck);
     }
 
     try {
