@@ -1,0 +1,21 @@
+src/plugin.ts
+  s_49a3e0133581a2::t_4461529c5063d6 10-11,262-263,292-305,315-316,373-374,381-382,407
+dist/plugin.js
+  s_49a3e0133581a2::t_3d7bb8e3ad9ea5 12436-12437,12649-12650,12680-12694,12703-12704,12756-12757,12763-12764,12789
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fc11ae2f0a020f52a12adc7ac3e6685bf2d64aec",
+  "prompts": {},
+  "sessions": {
+    "s_49a3e0133581a2": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "ba4aa77a-9e49-4e27-8bb7-cc74d0a8a1d0",
+        "model": "unknown"
+      },
+      "human_author": "leecoder <leecoder@aol.com>"
+    }
+  }
+}
