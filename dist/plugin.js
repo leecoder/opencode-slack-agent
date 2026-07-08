@@ -12989,14 +12989,12 @@ var pluginModule = {
     loadSessions();
     log(`sessions loaded: ${Object.keys(sessions).length} entries from ${sessionsPath}`);
     const allowedUsersStr = options?.ALLOWED_USERS || process.env.SLACK_ALLOWED_USERS || "";
+    let emailsToResolve = [];
     if (allowedUsersStr) {
       const entries = allowedUsersStr.split(",").map((u) => u.trim()).filter(Boolean);
       allowedUsers = new Set(entries.filter((e) => e.startsWith("U")));
-      const emails = entries.filter((e) => e.includes("@"));
-      if (emails.length > 0) {
-        sendIPC({ type: "resolve_emails", emails });
-      }
-      log(`allowed users: ${[...allowedUsers].join(", ")}${emails.length ? ` + ${emails.length} emails to resolve` : ""}`);
+      emailsToResolve = entries.filter((e) => e.includes("@"));
+      log(`allowed users: ${[...allowedUsers].join(", ")}${emailsToResolve.length ? ` + ${emailsToResolve.length} emails to resolve` : ""}`);
     }
     const workerEnv = {
       SLACK_BOT_TOKEN: botToken,
@@ -13005,6 +13003,9 @@ var pluginModule = {
     const caCerts = options?.NODE_EXTRA_CA_CERTS || process.env.NODE_EXTRA_CA_CERTS || "";
     if (caCerts) workerEnv.NODE_EXTRA_CA_CERTS = caCerts;
     startWorker(workerEnv);
+    if (emailsToResolve.length > 0) {
+      sendIPC({ type: "resolve_emails", emails: emailsToResolve });
+    }
     initialized = true;
     log("plugin initialized (hybrid sidecar + persistent sessions)");
     return {
