@@ -616,8 +616,8 @@ function deriveBackgroundStateFromText(text: string): "running" | "completed" | 
   if (!normalized) return "unknown";
   if (/\bnot[\s_-]?found\b/.test(normalized) || /\bmissing\b/.test(normalized)) return "not_found";
   if (/\bcancel(?:ed|led)\b/.test(normalized) || /\baborted\b/.test(normalized) || /\btimed[\s_-]?out\b/.test(normalized)) return "cancelled";
-  if (/\b(?:failed|failure|error)\b/.test(normalized)) return "error";
   if (/\b(?:completed|complete|done|succeeded|success|finished)\b/.test(normalized)) return "completed";
+  if (/\b(?:failed|failure|error)\b/.test(normalized)) return "error";
   if (/\b(?:running|pending|in[\s_-]?progress|queued|processing)\b/.test(normalized)) return "running";
   return "unknown";
 }
@@ -662,16 +662,22 @@ function deriveBackgroundStateFromObject(value: unknown, depth = 0): "running" |
   }
 
   for (const [key, raw] of Object.entries(obj)) {
-    if (typeof raw === "string") {
-      const keyLower = key.toLowerCase();
-      if (keyLower === "status" || keyLower === "state" || keyLower.endsWith("_status") || keyLower.endsWith("_state")) {
-        const normalized = normalizeBackgroundStateToken(raw);
-        if (normalized !== "unknown") return normalized;
-      }
-      if (["raw", "message", "detail", "text", "output", "result"].includes(keyLower)) {
-        const fromText = deriveBackgroundStateFromText(raw);
-        if (fromText !== "unknown") return fromText;
-      }
+    if (typeof raw !== "string") continue;
+    const keyLower = key.toLowerCase();
+    if (keyLower === "status" || keyLower === "state" || keyLower.endsWith("_status") || keyLower.endsWith("_state")) {
+      const normalized = normalizeBackgroundStateToken(raw);
+      if (normalized !== "unknown") return normalized;
+      const fromStatusText = deriveBackgroundStateFromText(raw);
+      if (fromStatusText !== "unknown") return fromStatusText;
+    }
+  }
+
+  for (const [key, raw] of Object.entries(obj)) {
+    if (typeof raw !== "string") continue;
+    const keyLower = key.toLowerCase();
+    if (["raw", "message", "detail", "text", "output", "result"].includes(keyLower)) {
+      const fromText = deriveBackgroundStateFromText(raw);
+      if (fromText !== "unknown") return fromText;
     }
   }
 
@@ -726,7 +732,7 @@ function parseResponsePayload(text: string): unknown {
   }
 }
 
-async function callBackgroundOutput(bgTaskID: string): Promise<{ ok: boolean; statusCode: number; payload?: unknown; error?: string; unsupported?: boolean; retryable?: boolean }> {
+async function callBackgroundOutput(bgTaskID: string, requestTimeoutMs = BG_OUTPUT_REQUEST_TIMEOUT_MS): Promise<{ ok: boolean; statusCode: number; payload?: unknown; error?: string; unsupported?: boolean; retryable?: boolean }> {
   const baseUrl = opencodeBaseUrl();
   const authHeader = opencodeAuthHeader();
   const candidatePaths = cachedBackgroundOutputPath
@@ -744,7 +750,7 @@ async function callBackgroundOutput(bgTaskID: string): Promise<{ ok: boolean; st
           ...(authHeader ? { Authorization: authHeader } : {}),
         },
         body: JSON.stringify({ task_id: bgTaskID, from_end: true, message_limit: 50 }),
-        signal: AbortSignal.timeout(BG_OUTPUT_REQUEST_TIMEOUT_MS),
+        signal: AbortSignal.timeout(requestTimeoutMs),
       });
 
       if (response.status === 404) {
@@ -845,7 +851,10 @@ async function handleAttachBackgroundTask(
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < effectiveTimeoutMs) {
-    const probe = await callBackgroundOutput(bgTaskID);
+    const remainingMs = effectiveTimeoutMs - (Date.now() - startedAt);
+    if (remainingMs <= 0) break;
+    const requestTimeoutMs = Math.max(1_000, Math.min(BG_OUTPUT_REQUEST_TIMEOUT_MS, remainingMs));
+    const probe = await callBackgroundOutput(bgTaskID, requestTimeoutMs);
     if (!probe.ok) {
       if (probe.unsupported) {
         slackSend(channel, "❌ 현재 OpenCode 서버에서 background output API를 찾을 수 없습니다.", ts);
