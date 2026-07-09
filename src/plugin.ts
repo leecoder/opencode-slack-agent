@@ -13,6 +13,8 @@ const DEFAULT_ATTACH_TIMEOUT_SEC = 600;
 const BG_OUTPUT_REQUEST_TIMEOUT_MS = 15_000;
 const BG_OUTPUT_CANDIDATE_PATHS = ["/background/output", "/background_output", "/api/background/output"] as const;
 const BG_TASK_ID_PATTERN = /^bg_[A-Za-z0-9][A-Za-z0-9_-]*$/;
+const AUTO_ATTACH_MAX_TASKS_PER_MESSAGE = 3;
+const AUTO_ATTACH_MAX_MONITOR_BUDGET_MS = 120_000;
 
 let initialized = false;
 let worker: ChildProcess | null = null;
@@ -446,10 +448,22 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
     }
 
     if (backgroundTaskIDs.size > 0) {
-      for (const bgTaskID of backgroundTaskIDs) {
+      const autoTaskIds = [...backgroundTaskIDs].slice(0, AUTO_ATTACH_MAX_TASKS_PER_MESSAGE);
+      const autoAttachStartedAt = Date.now();
+      if (backgroundTaskIDs.size > autoTaskIds.length) {
+        const skipped = backgroundTaskIDs.size - autoTaskIds.length;
+        slackSend(channel, `ℹ️ 감지된 bg 작업이 많아 상위 ${autoTaskIds.length}개만 자동 확인합니다. (${skipped}개는 수동 attach 권장)`, threadTs);
+      }
+      for (const bgTaskID of autoTaskIds) {
+        const remainingBudgetMs = AUTO_ATTACH_MAX_MONITOR_BUDGET_MS - (Date.now() - autoAttachStartedAt);
+        if (remainingBudgetMs <= 0) {
+          slackSend(channel, "⏱️ 자동 bg 확인 예산(2분)을 초과하여 추가 작업은 건너뜁니다. 필요 시 `!attach bg_xxx`로 확인하세요.", threadTs);
+          break;
+        }
         const state = await handleAttachBackgroundTask(channel, bgTaskID, threadTs, {
           announceStart: false,
           renderPayloadOnComplete: false,
+          maxWaitMs: remainingBudgetMs,
         });
         if (state === "completed") {
           try {
@@ -545,9 +559,11 @@ function timeoutLabel(ms: number): string {
 function collectBackgroundTaskIds(value: unknown, found: Set<string>) {
   if (value == null) return;
   if (typeof value === "string") {
-    const matches = value.match(/bg_[a-zA-Z0-9_-]+/g);
+    const matches = value.match(/\bbg_[A-Za-z0-9][A-Za-z0-9_-]*\b/g);
     if (matches) {
-      for (const id of matches) found.add(id);
+      for (const id of matches) {
+        if (BG_TASK_ID_PATTERN.test(id)) found.add(id);
+      }
     }
     return;
   }
@@ -557,7 +573,7 @@ function collectBackgroundTaskIds(value: unknown, found: Set<string>) {
   }
   if (typeof value === "object") {
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      if ((k === "task_id" || k === "taskId") && typeof v === "string" && v.startsWith("bg_")) {
+      if ((k === "task_id" || k === "taskId") && typeof v === "string" && BG_TASK_ID_PATTERN.test(v)) {
         found.add(v);
       }
       collectBackgroundTaskIds(v, found);
@@ -584,14 +600,45 @@ function normalizeBackgroundStateToken(token: string): "running" | "completed" |
   return "unknown";
 }
 
+function statePriority(state: "running" | "completed" | "error" | "cancelled" | "not_found" | "unknown"): number {
+  switch (state) {
+    case "completed": return 5;
+    case "error": return 4;
+    case "cancelled": return 3;
+    case "not_found": return 2;
+    case "running": return 1;
+    default: return 0;
+  }
+}
+
+function deriveBackgroundStateFromText(text: string): "running" | "completed" | "error" | "cancelled" | "not_found" | "unknown" {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return "unknown";
+  if (/\bnot[\s_-]?found\b/.test(normalized) || /\bmissing\b/.test(normalized)) return "not_found";
+  if (/\bcancel(?:ed|led)\b/.test(normalized) || /\baborted\b/.test(normalized) || /\btimed[\s_-]?out\b/.test(normalized)) return "cancelled";
+  if (/\b(?:failed|failure|error)\b/.test(normalized)) return "error";
+  if (/\b(?:completed|complete|done|succeeded|success|finished)\b/.test(normalized)) return "completed";
+  if (/\b(?:running|pending|in[\s_-]?progress|queued|processing)\b/.test(normalized)) return "running";
+  return "unknown";
+}
+
 function deriveBackgroundStateFromObject(value: unknown, depth = 0): "running" | "completed" | "error" | "cancelled" | "not_found" | "unknown" {
+  if (typeof value === "string") {
+    const tokenState = normalizeBackgroundStateToken(value);
+    if (tokenState !== "unknown") return tokenState;
+    return deriveBackgroundStateFromText(value);
+  }
   if (!value || typeof value !== "object" || depth > 3) return "unknown";
   if (Array.isArray(value)) {
+    let bestState: "running" | "completed" | "error" | "cancelled" | "not_found" | "unknown" = "unknown";
     for (const entry of value) {
       const nested = deriveBackgroundStateFromObject(entry, depth + 1);
-      if (nested !== "unknown") return nested;
+      if (statePriority(nested) > statePriority(bestState)) {
+        bestState = nested;
+      }
+      if (bestState === "completed") return bestState;
     }
-    return "unknown";
+    return bestState;
   }
 
   const obj = value as Record<string, unknown>;
@@ -621,6 +668,10 @@ function deriveBackgroundStateFromObject(value: unknown, depth = 0): "running" |
         const normalized = normalizeBackgroundStateToken(raw);
         if (normalized !== "unknown") return normalized;
       }
+      if (["raw", "message", "detail", "text", "output", "result"].includes(keyLower)) {
+        const fromText = deriveBackgroundStateFromText(raw);
+        if (fromText !== "unknown") return fromText;
+      }
     }
   }
 
@@ -633,7 +684,14 @@ function deriveBackgroundStateFromObject(value: unknown, depth = 0): "running" |
 }
 
 function deriveBackgroundState(payload: unknown): "running" | "completed" | "error" | "cancelled" | "not_found" | "unknown" {
-  return deriveBackgroundStateFromObject(payload);
+  const structured = deriveBackgroundStateFromObject(payload);
+  if (structured !== "unknown") return structured;
+  if (typeof payload === "string") return deriveBackgroundStateFromText(payload);
+  if (payload && typeof payload === "object") {
+    const fromText = deriveBackgroundStateFromText(stringifyLimited(payload, 2_000));
+    if (fromText !== "unknown") return fromText;
+  }
+  return "unknown";
 }
 
 function opencodeBaseUrl(): string {
@@ -668,7 +726,7 @@ function parseResponsePayload(text: string): unknown {
   }
 }
 
-async function callBackgroundOutput(bgTaskID: string): Promise<{ ok: boolean; statusCode: number; payload?: unknown; error?: string; unsupported?: boolean }> {
+async function callBackgroundOutput(bgTaskID: string): Promise<{ ok: boolean; statusCode: number; payload?: unknown; error?: string; unsupported?: boolean; retryable?: boolean }> {
   const baseUrl = opencodeBaseUrl();
   const authHeader = opencodeAuthHeader();
   const candidatePaths = cachedBackgroundOutputPath
@@ -708,7 +766,12 @@ async function callBackgroundOutput(bgTaskID: string): Promise<{ ok: boolean; st
       return { ok: true, statusCode: response.status, payload: parseResponsePayload(text) };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      return { ok: false, statusCode: 500, error: msg };
+      const isTimeout = error instanceof Error
+        && (error.name === "TimeoutError" || error.name === "AbortError" || msg.toLowerCase().includes("timeout"));
+      if (isTimeout) {
+        return { ok: false, statusCode: 408, error: msg, retryable: true };
+      }
+      return { ok: false, statusCode: 500, error: msg, retryable: false };
     }
   }
 
@@ -724,6 +787,7 @@ async function callBackgroundOutput(bgTaskID: string): Promise<{ ok: boolean; st
 type AttachBackgroundOptions = {
   announceStart?: boolean;
   renderPayloadOnComplete?: boolean;
+  maxWaitMs?: number;
 };
 
 async function syncAssistantMessagesSinceCursor(
@@ -751,6 +815,10 @@ async function syncAssistantMessagesSinceCursor(
     .sort((a: any, b: any) => (a.info?.time?.created || 0) - (b.info?.time?.created || 0));
 
   for (const msg of unsyncedAssistantMessages) {
+    if (!Array.isArray(msg.parts)) {
+      log(`skip assistant message with non-array parts: ${msg.id || "unknown"}`);
+      continue;
+    }
     const textParts = (msg.parts as any[])
       .filter((p: any) => p.type === "text" && p.text)
       .map((p: any) => p.text)
@@ -770,17 +838,23 @@ async function handleAttachBackgroundTask(
 ): Promise<"completed" | "error" | "cancelled" | "not_found" | "timeout" | "unsupported" | "access_denied"> {
   const announceStart = options.announceStart !== false;
   const renderPayloadOnComplete = options.renderPayloadOnComplete !== false;
+  const effectiveTimeoutMs = Math.max(1_000, Math.min(attachBgTimeoutMs, options.maxWaitMs ?? attachBgTimeoutMs));
   if (announceStart) {
     slackSend(channel, `🔗 bg 작업 attach: \`${bgTaskID}\`\n완료까지 상태를 확인합니다.`, ts);
   }
   const startedAt = Date.now();
 
-  while (Date.now() - startedAt < attachBgTimeoutMs) {
+  while (Date.now() - startedAt < effectiveTimeoutMs) {
     const probe = await callBackgroundOutput(bgTaskID);
     if (!probe.ok) {
       if (probe.unsupported) {
         slackSend(channel, "❌ 현재 OpenCode 서버에서 background output API를 찾을 수 없습니다.", ts);
         return "unsupported";
+      }
+      if (probe.retryable) {
+        log(`retryable background output timeout: ${bgTaskID} ${probe.error || "timeout"}`);
+        await sleep(attachPollIntervalMs(Date.now() - startedAt));
+        continue;
       }
       if (probe.statusCode === 401 || probe.statusCode === 403) {
         slackSend(channel, `❌ bg 작업 접근 권한이 없습니다: \`${bgTaskID}\``, ts);
@@ -821,7 +895,7 @@ async function handleAttachBackgroundTask(
   }
 
   log(`attach bg timeout without terminal state: ${bgTaskID}`);
-  slackSend(channel, `⏱️ bg 작업 대기 시간 초과 (${timeoutLabel(attachBgTimeoutMs)}): \`${bgTaskID}\`\n다시 \`!attach ${bgTaskID}\`로 이어서 확인할 수 있습니다.`, ts);
+  slackSend(channel, `⏱️ bg 작업 대기 시간 초과 (${timeoutLabel(effectiveTimeoutMs)}): \`${bgTaskID}\`\n다시 \`!attach ${bgTaskID}\`로 이어서 확인할 수 있습니다.`, ts);
   return "timeout";
 }
 

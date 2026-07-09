@@ -12439,6 +12439,8 @@ var DEFAULT_ATTACH_TIMEOUT_SEC = 600;
 var BG_OUTPUT_REQUEST_TIMEOUT_MS = 15e3;
 var BG_OUTPUT_CANDIDATE_PATHS = ["/background/output", "/background_output", "/api/background/output"];
 var BG_TASK_ID_PATTERN = /^bg_[A-Za-z0-9][A-Za-z0-9_-]*$/;
+var AUTO_ATTACH_MAX_TASKS_PER_MESSAGE = 3;
+var AUTO_ATTACH_MAX_MONITOR_BUDGET_MS = 12e4;
 var initialized = false;
 var worker = null;
 var pluginClient = null;
@@ -12825,10 +12827,22 @@ ${q.question}
       log(`final sync error: ${fetchErr.message}`);
     }
     if (backgroundTaskIDs.size > 0) {
-      for (const bgTaskID of backgroundTaskIDs) {
+      const autoTaskIds = [...backgroundTaskIDs].slice(0, AUTO_ATTACH_MAX_TASKS_PER_MESSAGE);
+      const autoAttachStartedAt = Date.now();
+      if (backgroundTaskIDs.size > autoTaskIds.length) {
+        const skipped = backgroundTaskIDs.size - autoTaskIds.length;
+        slackSend(channel, `\u2139\uFE0F \uAC10\uC9C0\uB41C bg \uC791\uC5C5\uC774 \uB9CE\uC544 \uC0C1\uC704 ${autoTaskIds.length}\uAC1C\uB9CC \uC790\uB3D9 \uD655\uC778\uD569\uB2C8\uB2E4. (${skipped}\uAC1C\uB294 \uC218\uB3D9 attach \uAD8C\uC7A5)`, threadTs);
+      }
+      for (const bgTaskID of autoTaskIds) {
+        const remainingBudgetMs = AUTO_ATTACH_MAX_MONITOR_BUDGET_MS - (Date.now() - autoAttachStartedAt);
+        if (remainingBudgetMs <= 0) {
+          slackSend(channel, "\u23F1\uFE0F \uC790\uB3D9 bg \uD655\uC778 \uC608\uC0B0(2\uBD84)\uC744 \uCD08\uACFC\uD558\uC5EC \uCD94\uAC00 \uC791\uC5C5\uC740 \uAC74\uB108\uB701\uB2C8\uB2E4. \uD544\uC694 \uC2DC `!attach bg_xxx`\uB85C \uD655\uC778\uD558\uC138\uC694.", threadTs);
+          break;
+        }
         const state = await handleAttachBackgroundTask(channel, bgTaskID, threadTs, {
           announceStart: false,
-          renderPayloadOnComplete: false
+          renderPayloadOnComplete: false,
+          maxWaitMs: remainingBudgetMs
         });
         if (state === "completed") {
           try {
@@ -12900,9 +12914,11 @@ function timeoutLabel(ms) {
 function collectBackgroundTaskIds(value, found) {
   if (value == null) return;
   if (typeof value === "string") {
-    const matches = value.match(/bg_[a-zA-Z0-9_-]+/g);
+    const matches = value.match(/\bbg_[A-Za-z0-9][A-Za-z0-9_-]*\b/g);
     if (matches) {
-      for (const id of matches) found.add(id);
+      for (const id of matches) {
+        if (BG_TASK_ID_PATTERN.test(id)) found.add(id);
+      }
     }
     return;
   }
@@ -12912,7 +12928,7 @@ function collectBackgroundTaskIds(value, found) {
   }
   if (typeof value === "object") {
     for (const [k, v] of Object.entries(value)) {
-      if ((k === "task_id" || k === "taskId") && typeof v === "string" && v.startsWith("bg_")) {
+      if ((k === "task_id" || k === "taskId") && typeof v === "string" && BG_TASK_ID_PATTERN.test(v)) {
         found.add(v);
       }
       collectBackgroundTaskIds(v, found);
@@ -12936,14 +12952,49 @@ function normalizeBackgroundStateToken(token) {
   if (["not_found", "missing"].includes(normalized)) return "not_found";
   return "unknown";
 }
+function statePriority(state) {
+  switch (state) {
+    case "completed":
+      return 5;
+    case "error":
+      return 4;
+    case "cancelled":
+      return 3;
+    case "not_found":
+      return 2;
+    case "running":
+      return 1;
+    default:
+      return 0;
+  }
+}
+function deriveBackgroundStateFromText(text) {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return "unknown";
+  if (/\bnot[\s_-]?found\b/.test(normalized) || /\bmissing\b/.test(normalized)) return "not_found";
+  if (/\bcancel(?:ed|led)\b/.test(normalized) || /\baborted\b/.test(normalized) || /\btimed[\s_-]?out\b/.test(normalized)) return "cancelled";
+  if (/\b(?:failed|failure|error)\b/.test(normalized)) return "error";
+  if (/\b(?:completed|complete|done|succeeded|success|finished)\b/.test(normalized)) return "completed";
+  if (/\b(?:running|pending|in[\s_-]?progress|queued|processing)\b/.test(normalized)) return "running";
+  return "unknown";
+}
 function deriveBackgroundStateFromObject(value, depth = 0) {
+  if (typeof value === "string") {
+    const tokenState = normalizeBackgroundStateToken(value);
+    if (tokenState !== "unknown") return tokenState;
+    return deriveBackgroundStateFromText(value);
+  }
   if (!value || typeof value !== "object" || depth > 3) return "unknown";
   if (Array.isArray(value)) {
+    let bestState = "unknown";
     for (const entry of value) {
       const nested = deriveBackgroundStateFromObject(entry, depth + 1);
-      if (nested !== "unknown") return nested;
+      if (statePriority(nested) > statePriority(bestState)) {
+        bestState = nested;
+      }
+      if (bestState === "completed") return bestState;
     }
-    return "unknown";
+    return bestState;
   }
   const obj = value;
   const orderedBooleanKeys = [
@@ -12970,6 +13021,10 @@ function deriveBackgroundStateFromObject(value, depth = 0) {
         const normalized = normalizeBackgroundStateToken(raw);
         if (normalized !== "unknown") return normalized;
       }
+      if (["raw", "message", "detail", "text", "output", "result"].includes(keyLower)) {
+        const fromText = deriveBackgroundStateFromText(raw);
+        if (fromText !== "unknown") return fromText;
+      }
     }
   }
   for (const nested of Object.values(obj)) {
@@ -12979,7 +13034,14 @@ function deriveBackgroundStateFromObject(value, depth = 0) {
   return "unknown";
 }
 function deriveBackgroundState(payload) {
-  return deriveBackgroundStateFromObject(payload);
+  const structured = deriveBackgroundStateFromObject(payload);
+  if (structured !== "unknown") return structured;
+  if (typeof payload === "string") return deriveBackgroundStateFromText(payload);
+  if (payload && typeof payload === "object") {
+    const fromText = deriveBackgroundStateFromText(stringifyLimited(payload, 2e3));
+    if (fromText !== "unknown") return fromText;
+  }
+  return "unknown";
 }
 function opencodeBaseUrl() {
   const portArgIndex = process.argv.indexOf("--port");
@@ -13043,7 +13105,11 @@ async function callBackgroundOutput(bgTaskID) {
       return { ok: true, statusCode: response.status, payload: parseResponsePayload(text) };
     } catch (error45) {
       const msg = error45 instanceof Error ? error45.message : String(error45);
-      return { ok: false, statusCode: 500, error: msg };
+      const isTimeout = error45 instanceof Error && (error45.name === "TimeoutError" || error45.name === "AbortError" || msg.toLowerCase().includes("timeout"));
+      if (isTimeout) {
+        return { ok: false, statusCode: 408, error: msg, retryable: true };
+      }
+      return { ok: false, statusCode: 500, error: msg, retryable: false };
     }
   }
   if (saw404 && sawEndpointStyle404) {
@@ -13067,6 +13133,10 @@ async function syncAssistantMessagesSinceCursor(sessionId, channel, threadTs, cu
   }
   const unsyncedAssistantMessages = messages.slice(startIndex).filter((m) => m.info?.role === "assistant").sort((a, b) => (a.info?.time?.created || 0) - (b.info?.time?.created || 0));
   for (const msg of unsyncedAssistantMessages) {
+    if (!Array.isArray(msg.parts)) {
+      log(`skip assistant message with non-array parts: ${msg.id || "unknown"}`);
+      continue;
+    }
     const textParts = msg.parts.filter((p) => p.type === "text" && p.text).map((p) => p.text).join("\n");
     if (textParts) sendLongText(channel, textParts, threadTs);
   }
@@ -13076,17 +13146,23 @@ async function syncAssistantMessagesSinceCursor(sessionId, channel, threadTs, cu
 async function handleAttachBackgroundTask(channel, bgTaskID, ts, options = {}) {
   const announceStart = options.announceStart !== false;
   const renderPayloadOnComplete = options.renderPayloadOnComplete !== false;
+  const effectiveTimeoutMs = Math.max(1e3, Math.min(attachBgTimeoutMs, options.maxWaitMs ?? attachBgTimeoutMs));
   if (announceStart) {
     slackSend(channel, `\u{1F517} bg \uC791\uC5C5 attach: \`${bgTaskID}\`
 \uC644\uB8CC\uAE4C\uC9C0 \uC0C1\uD0DC\uB97C \uD655\uC778\uD569\uB2C8\uB2E4.`, ts);
   }
   const startedAt = Date.now();
-  while (Date.now() - startedAt < attachBgTimeoutMs) {
+  while (Date.now() - startedAt < effectiveTimeoutMs) {
     const probe = await callBackgroundOutput(bgTaskID);
     if (!probe.ok) {
       if (probe.unsupported) {
         slackSend(channel, "\u274C \uD604\uC7AC OpenCode \uC11C\uBC84\uC5D0\uC11C background output API\uB97C \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.", ts);
         return "unsupported";
+      }
+      if (probe.retryable) {
+        log(`retryable background output timeout: ${bgTaskID} ${probe.error || "timeout"}`);
+        await sleep(attachPollIntervalMs(Date.now() - startedAt));
+        continue;
       }
       if (probe.statusCode === 401 || probe.statusCode === 403) {
         slackSend(channel, `\u274C bg \uC791\uC5C5 \uC811\uADFC \uAD8C\uD55C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4: \`${bgTaskID}\``, ts);
@@ -13126,7 +13202,7 @@ ${stringifyLimited(probe.payload)}`, ts);
     await sleep(attachPollIntervalMs(Date.now() - startedAt));
   }
   log(`attach bg timeout without terminal state: ${bgTaskID}`);
-  slackSend(channel, `\u23F1\uFE0F bg \uC791\uC5C5 \uB300\uAE30 \uC2DC\uAC04 \uCD08\uACFC (${timeoutLabel(attachBgTimeoutMs)}): \`${bgTaskID}\`
+  slackSend(channel, `\u23F1\uFE0F bg \uC791\uC5C5 \uB300\uAE30 \uC2DC\uAC04 \uCD08\uACFC (${timeoutLabel(effectiveTimeoutMs)}): \`${bgTaskID}\`
 \uB2E4\uC2DC \`!attach ${bgTaskID}\`\uB85C \uC774\uC5B4\uC11C \uD655\uC778\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.`, ts);
   return "timeout";
 }
