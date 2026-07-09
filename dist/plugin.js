@@ -13160,7 +13160,8 @@ async function handleAttachBackgroundTask(channel, bgTaskID, ts, options = {}) {
   while (Date.now() - startedAt < effectiveTimeoutMs) {
     const remainingMs = effectiveTimeoutMs - (Date.now() - startedAt);
     if (remainingMs <= 0) break;
-    const requestTimeoutMs = Math.max(1e3, Math.min(BG_OUTPUT_REQUEST_TIMEOUT_MS, remainingMs));
+    const requestTimeoutMs = Math.min(BG_OUTPUT_REQUEST_TIMEOUT_MS, remainingMs);
+    if (requestTimeoutMs <= 0) break;
     const probe = await callBackgroundOutput(bgTaskID, requestTimeoutMs);
     if (!probe.ok) {
       if (probe.unsupported) {
@@ -13169,7 +13170,10 @@ async function handleAttachBackgroundTask(channel, bgTaskID, ts, options = {}) {
       }
       if (probe.retryable) {
         log(`retryable background output timeout: ${bgTaskID} ${probe.error || "timeout"}`);
-        await sleep(attachPollIntervalMs(Date.now() - startedAt));
+        const retryWaitMs = attachPollIntervalMs(Date.now() - startedAt);
+        const retryRemainingMs = effectiveTimeoutMs - (Date.now() - startedAt);
+        if (retryRemainingMs <= 0) break;
+        await sleep(Math.min(retryWaitMs, retryRemainingMs));
         continue;
       }
       if (probe.statusCode === 401 || probe.statusCode === 403) {
@@ -13207,7 +13211,10 @@ ${stringifyLimited(probe.payload)}`, ts);
       slackSend(channel, `\u274C bg \uC791\uC5C5\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4: \`${bgTaskID}\``, ts);
       return "not_found";
     }
-    await sleep(attachPollIntervalMs(Date.now() - startedAt));
+    const waitMs = attachPollIntervalMs(Date.now() - startedAt);
+    const waitRemainingMs = effectiveTimeoutMs - (Date.now() - startedAt);
+    if (waitRemainingMs <= 0) break;
+    await sleep(Math.min(waitMs, waitRemainingMs));
   }
   log(`attach bg timeout without terminal state: ${bgTaskID}`);
   slackSend(channel, `\u23F1\uFE0F bg \uC791\uC5C5 \uB300\uAE30 \uC2DC\uAC04 \uCD08\uACFC (${timeoutLabel(effectiveTimeoutMs)}): \`${bgTaskID}\`

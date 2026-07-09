@@ -853,7 +853,8 @@ async function handleAttachBackgroundTask(
   while (Date.now() - startedAt < effectiveTimeoutMs) {
     const remainingMs = effectiveTimeoutMs - (Date.now() - startedAt);
     if (remainingMs <= 0) break;
-    const requestTimeoutMs = Math.max(1_000, Math.min(BG_OUTPUT_REQUEST_TIMEOUT_MS, remainingMs));
+    const requestTimeoutMs = Math.min(BG_OUTPUT_REQUEST_TIMEOUT_MS, remainingMs);
+    if (requestTimeoutMs <= 0) break;
     const probe = await callBackgroundOutput(bgTaskID, requestTimeoutMs);
     if (!probe.ok) {
       if (probe.unsupported) {
@@ -862,7 +863,10 @@ async function handleAttachBackgroundTask(
       }
       if (probe.retryable) {
         log(`retryable background output timeout: ${bgTaskID} ${probe.error || "timeout"}`);
-        await sleep(attachPollIntervalMs(Date.now() - startedAt));
+        const retryWaitMs = attachPollIntervalMs(Date.now() - startedAt);
+        const retryRemainingMs = effectiveTimeoutMs - (Date.now() - startedAt);
+        if (retryRemainingMs <= 0) break;
+        await sleep(Math.min(retryWaitMs, retryRemainingMs));
         continue;
       }
       if (probe.statusCode === 401 || probe.statusCode === 403) {
@@ -900,7 +904,10 @@ async function handleAttachBackgroundTask(
       return "not_found";
     }
 
-    await sleep(attachPollIntervalMs(Date.now() - startedAt));
+    const waitMs = attachPollIntervalMs(Date.now() - startedAt);
+    const waitRemainingMs = effectiveTimeoutMs - (Date.now() - startedAt);
+    if (waitRemainingMs <= 0) break;
+    await sleep(Math.min(waitMs, waitRemainingMs));
   }
 
   log(`attach bg timeout without terminal state: ${bgTaskID}`);
