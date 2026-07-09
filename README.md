@@ -55,6 +55,7 @@ Add plugin with tokens to `~/.config/opencode/opencode.json`:
 | `SLACK_APP_TOKEN` | — | Required. App-level token (`xapp-...`) |
 | `DEFAULT_DIRECTORY` | serve directory | Default workspace for new sessions |
 | `ALLOWED_USERS` | — | Comma-separated Slack user IDs or emails. If unset, everyone can use the bot |
+| `ATTACH_TIMEOUT_SEC` | 600 | Timeout (seconds) for `!attach bg_xxx` polling |
 
 ### 4. Run
 
@@ -102,6 +103,7 @@ opencode serve --port 4096
 | `!dir` | Show current workspace |
 | `!dir /path/to/project` | Change workspace |
 | `!attach ses_xxx` | Attach existing session (URL paste supported) |
+| `!attach bg_xxx` | Attach and poll a background task ID |
 | `!reset` | Reset current thread session |
 
 ## Architecture

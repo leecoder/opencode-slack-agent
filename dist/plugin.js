@@ -12343,6 +12343,7 @@ var LOG_FILE = "/tmp/slack-agent-plugin.log";
 var SLACK_MSG_LIMIT = 3900;
 var RESPONSE_STALL_MS = 45000;
 var RESPONSE_STALL_NOTIFY_INTERVAL_MS = 60000;
+var ATTACH_BG_TIMEOUT_MS = (Number(process.env.ATTACH_TIMEOUT_SEC || "600") || 600) * 1000;
 var initialized = false;
 var worker = null;
 var pluginClient = null;
@@ -12745,6 +12746,134 @@ function sendLongText(channel, text, threadTs) {
   }
   slackSend(channel, text, threadTs);
 }
+function attachPollIntervalMs(elapsedMs) {
+  if (elapsedMs < 60000)
+    return 5000;
+  if (elapsedMs < 300000)
+    return 15000;
+  return 30000;
+}
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+function stringifyLimited(payload, maxLength = 3000) {
+  const text = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+  if (text.length <= maxLength)
+    return text;
+  return `${text.slice(0, maxLength)}\n...(truncated)`;
+}
+function deriveBackgroundState(payload) {
+  if (!payload || typeof payload !== "object")
+    return "unknown";
+  const sourceText = JSON.stringify(payload).toLowerCase();
+  if (sourceText.includes("not found") || sourceText.includes("not_found"))
+    return "not_found";
+  if (sourceText.includes("completed") || sourceText.includes("complete") || sourceText.includes("done"))
+    return "completed";
+  if (sourceText.includes("error") || sourceText.includes("failed") || sourceText.includes("failure"))
+    return "error";
+  if (sourceText.includes("cancelled") || sourceText.includes("canceled") || sourceText.includes("aborted") || sourceText.includes("timed_out"))
+    return "cancelled";
+  if (sourceText.includes("running") || sourceText.includes("pending") || sourceText.includes("in_progress"))
+    return "running";
+  return "unknown";
+}
+function opencodeBaseUrl() {
+  const portArgIndex = process.argv.indexOf("--port");
+  const portFromArg = portArgIndex >= 0 ? process.argv[portArgIndex + 1] : undefined;
+  const port = portFromArg || process.env.OPENCODE_PORT || "4096";
+  return `http://127.0.0.1:${port}`;
+}
+function opencodeAuthHeader() {
+  const password = process.env.OPENCODE_SERVER_PASSWORD || "";
+  if (!password)
+    return undefined;
+  const username = process.env.OPENCODE_SERVER_USERNAME || "opencode";
+  return `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
+}
+async function callBackgroundOutput(bgTaskID) {
+  const baseUrl = opencodeBaseUrl();
+  const authHeader = opencodeAuthHeader();
+  const candidatePaths = ["/background/output", "/background_output", "/api/background/output"];
+  let allNotFound = true;
+  for (const path of candidatePaths) {
+    try {
+      const response = await fetch(`${baseUrl}${path}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(authHeader ? { Authorization: authHeader } : {})
+        },
+        body: JSON.stringify({ task_id: bgTaskID, from_end: true, message_limit: 50 })
+      });
+      if (response.status === 404)
+        continue;
+      allNotFound = false;
+      if (!response.ok) {
+        return { ok: false, statusCode: response.status, error: await response.text() };
+      }
+      const text = await response.text();
+      if (!text)
+        return { ok: true, statusCode: response.status, payload: {} };
+      try {
+        return { ok: true, statusCode: response.status, payload: JSON.parse(text) };
+      } catch {
+        return { ok: true, statusCode: response.status, payload: { raw: text } };
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      return { ok: false, statusCode: 500, error: msg };
+    }
+  }
+  if (allNotFound) {
+    return { ok: false, statusCode: 404, unsupported: true, error: "Background output endpoint was not found." };
+  }
+  return { ok: false, statusCode: 500, error: "Unknown background output call failure." };
+}
+async function handleAttachBackgroundTask(channel, bgTaskID, ts) {
+  slackSend(channel, `🔗 bg 작업 attach: \`${bgTaskID}\`\n완료까지 상태를 확인합니다.`, ts);
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < ATTACH_BG_TIMEOUT_MS) {
+    const probe = await callBackgroundOutput(bgTaskID);
+    if (!probe.ok) {
+      if (probe.unsupported) {
+        slackSend(channel, "❌ 현재 OpenCode 서버에서 background output API를 찾을 수 없습니다.", ts);
+        return;
+      }
+      if (probe.statusCode === 401 || probe.statusCode === 403) {
+        slackSend(channel, `❌ bg 작업 접근 권한이 없습니다: \`${bgTaskID}\``, ts);
+        return;
+      }
+      if (probe.statusCode === 404) {
+        slackSend(channel, `❌ bg 작업을 찾을 수 없습니다: \`${bgTaskID}\``, ts);
+        return;
+      }
+      const errMessage = probe.error ? stringifyLimited(probe.error, 500) : "unknown error";
+      slackSend(channel, `❌ bg 조회 오류: ${errMessage}`, ts);
+      return;
+    }
+    const state = deriveBackgroundState(probe.payload);
+    if (state === "completed") {
+      sendLongText(channel, `✅ bg 작업 완료: \`${bgTaskID}\`\n${stringifyLimited(probe.payload)}`, ts);
+      return;
+    }
+    if (state === "error") {
+      sendLongText(channel, `❌ bg 작업 실패: \`${bgTaskID}\`\n${stringifyLimited(probe.payload)}`, ts);
+      return;
+    }
+    if (state === "cancelled") {
+      slackSend(channel, `🚫 bg 작업이 취소되었습니다: \`${bgTaskID}\``, ts);
+      return;
+    }
+    if (state === "not_found") {
+      slackSend(channel, `❌ bg 작업을 찾을 수 없습니다: \`${bgTaskID}\``, ts);
+      return;
+    }
+    await sleep(attachPollIntervalMs(Date.now() - startedAt));
+  }
+  log(`attach bg timeout without terminal state: ${bgTaskID}`);
+  slackSend(channel, `⏱️ bg 작업 대기 시간 초과 (10분): \`${bgTaskID}\`\n다시 \`!attach ${bgTaskID}\`로 이어서 확인할 수 있습니다.`, ts);
+}
 async function handleCommand(channel, text, ts) {
   if (!pluginClient)
     return false;
@@ -12828,6 +12957,10 @@ async function handleCommand(channel, text, ts) {
     if (!arg) {
       const currentSession = sessions[ts]?.sessionId || "(\uC5C6\uC74C)";
       slackSend(channel, `*\uD604\uC7AC \uC138\uC158:* \`${currentSession}\``, ts);
+      return true;
+    }
+    if (arg.startsWith("bg_")) {
+      await handleAttachBackgroundTask(channel, arg, ts);
       return true;
     }
     let sessionId = arg;
@@ -12915,6 +13048,7 @@ ${textParts}`, ts);
       "\u2022 `!dir` \u2014 \uD604\uC7AC \uC6CC\uD06C\uC2A4\uD398\uC774\uC2A4 \uD655\uC778",
       "\u2022 `!dir /path/to/project` \u2014 \uC6CC\uD06C\uC2A4\uD398\uC774\uC2A4 \uBCC0\uACBD",
       "\u2022 `!attach ses_xxx` \u2014 \uAE30\uC874 \uC138\uC158 \uC5F0\uACB0 (URL \uBD99\uC5EC\uB123\uAE30 \uAC00\uB2A5)",
+      "\u2022 `!attach bg_xxx` \u2014 \uBC31\uADF8\uB77C\uC6B4\uB4DC \uC791\uC5C5 \uC0C1\uD0DC attach",
       "\u2022 `!sync` \u2014 \uD074\uB77C\uC774\uC5B8\uD2B8 \uBA54\uC2DC\uC9C0\uB97C \uC2AC\uB799\uC73C\uB85C \uB3D9\uAE30\uD654",
       "\u2022 `!reset` \u2014 \uD604\uC7AC \uC2A4\uB808\uB4DC \uC138\uC158 \uB9AC\uC14B",
       "\u2022 `!help` \u2014 \uC774 \uB3C4\uC6C0\uB9D0"

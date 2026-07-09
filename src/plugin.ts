@@ -9,6 +9,7 @@ const LOG_FILE = "/tmp/slack-agent-plugin.log";
 const SLACK_MSG_LIMIT = 3900;
 const RESPONSE_STALL_MS = 45_000;
 const RESPONSE_STALL_NOTIFY_INTERVAL_MS = 60_000;
+const ATTACH_BG_TIMEOUT_MS = (Number(process.env.ATTACH_TIMEOUT_SEC || "600") || 600) * 1000;
 
 let initialized = false;
 let worker: ChildProcess | null = null;
@@ -463,6 +464,138 @@ function sendLongText(channel: string, text: string, threadTs?: string) {
   slackSend(channel, text, threadTs);
 }
 
+function attachPollIntervalMs(elapsedMs: number): number {
+  if (elapsedMs < 60_000) return 5_000;
+  if (elapsedMs < 300_000) return 15_000;
+  return 30_000;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function stringifyLimited(payload: unknown, maxLength = 3000): string {
+  const text = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength)}\n...(truncated)`;
+}
+
+function deriveBackgroundState(payload: unknown): "running" | "completed" | "error" | "cancelled" | "not_found" | "unknown" {
+  if (!payload || typeof payload !== "object") return "unknown";
+  const sourceText = JSON.stringify(payload).toLowerCase();
+  if (sourceText.includes("not found") || sourceText.includes("not_found")) return "not_found";
+  if (sourceText.includes("completed") || sourceText.includes("complete") || sourceText.includes("done")) return "completed";
+  if (sourceText.includes("error") || sourceText.includes("failed") || sourceText.includes("failure")) return "error";
+  if (sourceText.includes("cancelled") || sourceText.includes("canceled") || sourceText.includes("aborted") || sourceText.includes("timed_out")) return "cancelled";
+  if (sourceText.includes("running") || sourceText.includes("pending") || sourceText.includes("in_progress")) return "running";
+  return "unknown";
+}
+
+function opencodeBaseUrl(): string {
+  const portArgIndex = process.argv.indexOf("--port");
+  const portFromArg = portArgIndex >= 0 ? process.argv[portArgIndex + 1] : undefined;
+  const port = portFromArg || process.env.OPENCODE_PORT || "4096";
+  return `http://127.0.0.1:${port}`;
+}
+
+function opencodeAuthHeader(): string | undefined {
+  const password = process.env.OPENCODE_SERVER_PASSWORD || "";
+  if (!password) return undefined;
+  const username = process.env.OPENCODE_SERVER_USERNAME || "opencode";
+  return `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
+}
+
+async function callBackgroundOutput(bgTaskID: string): Promise<{ ok: boolean; statusCode: number; payload?: unknown; error?: string; unsupported?: boolean }> {
+  const baseUrl = opencodeBaseUrl();
+  const authHeader = opencodeAuthHeader();
+  const candidatePaths = ["/background/output", "/background_output", "/api/background/output"];
+  let allNotFound = true;
+
+  for (const path of candidatePaths) {
+    try {
+      const response = await fetch(`${baseUrl}${path}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(authHeader ? { Authorization: authHeader } : {}),
+        },
+        body: JSON.stringify({ task_id: bgTaskID, from_end: true, message_limit: 50 }),
+      });
+
+      if (response.status === 404) continue;
+      allNotFound = false;
+      if (!response.ok) {
+        return { ok: false, statusCode: response.status, error: await response.text() };
+      }
+
+      const text = await response.text();
+      if (!text) return { ok: true, statusCode: response.status, payload: {} };
+      try {
+        return { ok: true, statusCode: response.status, payload: JSON.parse(text) };
+      } catch {
+        return { ok: true, statusCode: response.status, payload: { raw: text } };
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      return { ok: false, statusCode: 500, error: msg };
+    }
+  }
+
+  if (allNotFound) {
+    return { ok: false, statusCode: 404, unsupported: true, error: "Background output endpoint was not found." };
+  }
+  return { ok: false, statusCode: 500, error: "Unknown background output call failure." };
+}
+
+async function handleAttachBackgroundTask(channel: string, bgTaskID: string, ts: string): Promise<void> {
+  slackSend(channel, `🔗 bg 작업 attach: \`${bgTaskID}\`\n완료까지 상태를 확인합니다.`, ts);
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < ATTACH_BG_TIMEOUT_MS) {
+    const probe = await callBackgroundOutput(bgTaskID);
+    if (!probe.ok) {
+      if (probe.unsupported) {
+        slackSend(channel, "❌ 현재 OpenCode 서버에서 background output API를 찾을 수 없습니다.", ts);
+        return;
+      }
+      if (probe.statusCode === 401 || probe.statusCode === 403) {
+        slackSend(channel, `❌ bg 작업 접근 권한이 없습니다: \`${bgTaskID}\``, ts);
+        return;
+      }
+      if (probe.statusCode === 404) {
+        slackSend(channel, `❌ bg 작업을 찾을 수 없습니다: \`${bgTaskID}\``, ts);
+        return;
+      }
+      const errMessage = probe.error ? stringifyLimited(probe.error, 500) : "unknown error";
+      slackSend(channel, `❌ bg 조회 오류: ${errMessage}`, ts);
+      return;
+    }
+
+    const state = deriveBackgroundState(probe.payload);
+    if (state === "completed") {
+      sendLongText(channel, `✅ bg 작업 완료: \`${bgTaskID}\`\n${stringifyLimited(probe.payload)}`, ts);
+      return;
+    }
+    if (state === "error") {
+      sendLongText(channel, `❌ bg 작업 실패: \`${bgTaskID}\`\n${stringifyLimited(probe.payload)}`, ts);
+      return;
+    }
+    if (state === "cancelled") {
+      slackSend(channel, `🚫 bg 작업이 취소되었습니다: \`${bgTaskID}\``, ts);
+      return;
+    }
+    if (state === "not_found") {
+      slackSend(channel, `❌ bg 작업을 찾을 수 없습니다: \`${bgTaskID}\``, ts);
+      return;
+    }
+
+    await sleep(attachPollIntervalMs(Date.now() - startedAt));
+  }
+
+  log(`attach bg timeout without terminal state: ${bgTaskID}`);
+  slackSend(channel, `⏱️ bg 작업 대기 시간 초과 (10분): \`${bgTaskID}\`\n다시 \`!attach ${bgTaskID}\`로 이어서 확인할 수 있습니다.`, ts);
+}
+
 async function handleCommand(channel: string, text: string, ts: string): Promise<boolean> {
   if (!pluginClient) return false;
   const parts = text.trim().split(/\s+/);
@@ -552,6 +685,12 @@ async function handleCommand(channel: string, text: string, ts: string): Promise
       slackSend(channel, `*현재 세션:* \`${currentSession}\``, ts);
       return true;
     }
+
+    if (arg.startsWith("bg_")) {
+      await handleAttachBackgroundTask(channel, arg, ts);
+      return true;
+    }
+
     let sessionId = arg;
     const urlMatch = arg.match(/\/session\/(ses_[a-zA-Z0-9]+)/);
     if (urlMatch) {
@@ -643,6 +782,7 @@ async function handleCommand(channel: string, text: string, ts: string): Promise
       "• `!dir` — 현재 워크스페이스 확인",
       "• `!dir /path/to/project` — 워크스페이스 변경",
       "• `!attach ses_xxx` — 기존 세션 연결 (URL 붙여넣기 가능)",
+      "• `!attach bg_xxx` — 백그라운드 작업 상태 attach",
       "• `!sync` — 클라이언트 메시지를 슬랙으로 동기화",
       "• `!reset` — 현재 스레드 세션 리셋",
       "• `!help` — 이 도움말",
