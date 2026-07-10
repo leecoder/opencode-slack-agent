@@ -4,6 +4,7 @@ import { spawn, type ChildProcess } from "child_process";
 import { appendFileSync, readFileSync, writeFileSync, existsSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
+import { homedir } from "os";
 
 const LOG_FILE = "/tmp/slack-agent-plugin.log";
 const SLACK_MSG_LIMIT = 3900;
@@ -45,6 +46,12 @@ type PendingQuestion = {
   createdAt: number;
 };
 let pendingQuestions: Map<string, PendingQuestion> = new Map();
+
+function expandTilde(p: string): string {
+  if (p === "~") return homedir();
+  if (p.startsWith("~/")) return join(homedir(), p.slice(2));
+  return p;
+}
 
 function log(m: string) {
   try { appendFileSync(LOG_FILE, `[${new Date().toISOString()}] plugin: ${m}\n`); } catch {}
@@ -987,13 +994,14 @@ async function handleCommand(channel: string, text: string, ts: string): Promise
       slackSend(channel, `*현재 워크스페이스:* \`${currentDir}\``, ts);
       return true;
     }
+    const resolvedDir = expandTilde(arg);
     if (!sessions[ts]) {
-      sessions[ts] = { sessionId: "", channel, lastUsed: Date.now(), directory: arg };
+      sessions[ts] = { sessionId: "", channel, lastUsed: Date.now(), directory: resolvedDir };
     } else {
-      sessions[ts].directory = arg;
+      sessions[ts].directory = resolvedDir;
     }
     saveSessions();
-    slackSend(channel, `✅ 워크스페이스 변경: \`${arg}\`\n다음 메시지부터 이 디렉토리에서 세션 생성.`, ts);
+    slackSend(channel, `✅ 워크스페이스 변경: \`${resolvedDir}\`\n다음 메시지부터 이 디렉토리에서 세션 생성.`, ts);
     return true;
   }
 
@@ -1203,7 +1211,7 @@ const pluginModule: PluginModule = {
     }
 
     pluginClient = input.client;
-    defaultDirectory = (options?.DEFAULT_DIRECTORY as string) || process.env.SLACK_DEFAULT_DIRECTORY || input.directory;
+    defaultDirectory = expandTilde((options?.DEFAULT_DIRECTORY as string) || process.env.SLACK_DEFAULT_DIRECTORY || input.directory);
     attachBgTimeoutMs = resolveAttachTimeoutMs(options?.ATTACH_TIMEOUT_SEC);
     log(`attach timeout set to ${attachBgTimeoutMs}ms`);
     sessionsPath = join(input.directory, "slack-sessions.json");
