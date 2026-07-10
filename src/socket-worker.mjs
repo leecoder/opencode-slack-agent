@@ -28,6 +28,28 @@ const slack = new WebClient(botToken, agent ? { agent, tls: { ca: agent.options.
 const socketClient = new SocketModeClient({ appToken });
 
 let botUserId;
+const EVENT_DEDUPE_TTL_MS = 2 * 60 * 1000;
+const seenEventKeys = new Map();
+
+function buildEventKey(body, ev) {
+  const eventId = typeof body?.event_id === "string" ? body.event_id : "";
+  if (eventId) return `event:${eventId}`;
+  const channel = typeof ev?.channel === "string" ? ev.channel : "";
+  const ts = typeof ev?.ts === "string" ? ev.ts : "";
+  if (channel && ts) return `msg:${channel}:${ts}`;
+  return "";
+}
+
+function shouldProcessEvent(eventKey) {
+  if (!eventKey) return true;
+  const now = Date.now();
+  for (const [key, expiresAt] of seenEventKeys) {
+    if (expiresAt <= now) seenEventKeys.delete(key);
+  }
+  if (seenEventKeys.has(eventKey)) return false;
+  seenEventKeys.set(eventKey, now + EVENT_DEDUPE_TTL_MS);
+  return true;
+}
 
 async function init() {
   const auth = await slack.auth.test();
@@ -109,6 +131,12 @@ socketClient.on("slack_event", async ({ body, ack }) => {
   if (ack) await ack();
   const ev = body?.event;
   if (!ev) return;
+
+  const eventKey = buildEventKey(body, ev);
+  if (!shouldProcessEvent(eventKey)) {
+    log(`duplicate event skipped: ${eventKey}`);
+    return;
+  }
 
   if (ev.type === "message" || ev.type === "app_mention") {
     if (ev.bot_id || ev.user === botUserId) return;
