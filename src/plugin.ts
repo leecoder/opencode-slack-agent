@@ -16,6 +16,7 @@ const BG_OUTPUT_CANDIDATE_PATHS = ["/background/output", "/background_output", "
 const BG_TASK_ID_PATTERN = /^bg_[A-Za-z0-9][A-Za-z0-9_-]*$/;
 const AUTO_ATTACH_MAX_TASKS_PER_MESSAGE = 3;
 const AUTO_ATTACH_MAX_MONITOR_BUDGET_MS = 120_000;
+const INBOUND_EVENT_DEDUPE_TTL_MS = 2 * 60 * 1000;
 
 let initialized = false;
 let worker: ChildProcess | null = null;
@@ -29,6 +30,7 @@ let allowedUsers: Set<string> | null = null;
 let allowlistReady = true;
 let attachBgTimeoutMs = DEFAULT_ATTACH_TIMEOUT_SEC * 1000;
 let cachedBackgroundOutputPath: string | null = null;
+let seenInboundEventKeys: Map<string, number> = new Map();
 
 type PendingPermission = {
   permissionId: string;
@@ -113,6 +115,30 @@ function markdownToSlackMrkdwn(text: string): string {
 
 function sendIPC(msg: any) {
   if (worker && worker.connected) worker.send(msg);
+}
+
+function buildInboundEventKey(msg: any): string {
+  const eventId = typeof msg?.eventId === "string" ? msg.eventId : "";
+  if (eventId) return `event:${eventId}`;
+  const channel = typeof msg?.channel === "string" ? msg.channel : "";
+  const messageTs = typeof msg?.messageTs === "string" ? msg.messageTs : "";
+  if (channel && messageTs) return `msg:${channel}:${messageTs}`;
+  return "";
+}
+
+function shouldProcessInboundEvent(msg: any): boolean {
+  const key = buildInboundEventKey(msg);
+  if (!key) return true;
+  const now = Date.now();
+  for (const [existingKey, expiresAt] of seenInboundEventKeys) {
+    if (expiresAt <= now) seenInboundEventKeys.delete(existingKey);
+  }
+  if (seenInboundEventKeys.has(key)) {
+    log(`duplicate inbound event skipped: ${key}`);
+    return false;
+  }
+  seenInboundEventKeys.set(key, now + INBOUND_EVENT_DEDUPE_TTL_MS);
+  return true;
 }
 
 function slackSend(channel: string, text: string, threadTs?: string) {
@@ -1137,6 +1163,9 @@ function startWorker(env: Record<string, string>) {
 
   worker.on("message", (msg: any) => {
     if (msg?.type === "slack_event") {
+      if (!shouldProcessInboundEvent(msg)) {
+        return;
+      }
       const isAllowed = !allowedUsers || !allowlistReady || allowedUsers.has(msg.user);
       const isThreadReply = msg.threadTs !== msg.messageTs;
 
