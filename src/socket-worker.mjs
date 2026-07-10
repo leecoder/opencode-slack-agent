@@ -28,15 +28,15 @@ const slack = new WebClient(botToken, agent ? { agent, tls: { ca: agent.options.
 const socketClient = new SocketModeClient({ appToken });
 
 let botUserId;
-const EVENT_DEDUPE_TTL_MS = 2 * 60 * 1000;
+const EVENT_DEDUPE_TTL_MS = 10 * 60 * 1000;
 const seenEventKeys = new Map();
 
 function buildEventKey(body, ev) {
-  const eventId = typeof body?.event_id === "string" ? body.event_id : "";
-  if (eventId) return `event:${eventId}`;
   const channel = typeof ev?.channel === "string" ? ev.channel : "";
   const ts = typeof ev?.ts === "string" ? ev.ts : "";
   if (channel && ts) return `msg:${channel}:${ts}`;
+  const eventId = typeof body?.event_id === "string" ? body.event_id : "";
+  if (eventId) return `event:${eventId}`;
   return "";
 }
 

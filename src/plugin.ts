@@ -16,7 +16,7 @@ const BG_OUTPUT_CANDIDATE_PATHS = ["/background/output", "/background_output", "
 const BG_TASK_ID_PATTERN = /^bg_[A-Za-z0-9][A-Za-z0-9_-]*$/;
 const AUTO_ATTACH_MAX_TASKS_PER_MESSAGE = 3;
 const AUTO_ATTACH_MAX_MONITOR_BUDGET_MS = 120_000;
-const INBOUND_EVENT_DEDUPE_TTL_MS = 2 * 60 * 1000;
+const INBOUND_EVENT_DEDUPE_TTL_MS = 10 * 60 * 1000;
 
 let initialized = false;
 let worker: ChildProcess | null = null;
@@ -118,11 +118,11 @@ function sendIPC(msg: any) {
 }
 
 function buildInboundEventKey(msg: any): string {
-  const eventId = typeof msg?.eventId === "string" ? msg.eventId : "";
-  if (eventId) return `event:${eventId}`;
   const channel = typeof msg?.channel === "string" ? msg.channel : "";
   const messageTs = typeof msg?.messageTs === "string" ? msg.messageTs : "";
   if (channel && messageTs) return `msg:${channel}:${messageTs}`;
+  const eventId = typeof msg?.eventId === "string" ? msg.eventId : "";
+  if (eventId) return `event:${eventId}`;
   return "";
 }
 
