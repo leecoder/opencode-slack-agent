@@ -118,26 +118,39 @@ function sendIPC(msg: any) {
 }
 
 function buildInboundEventKey(msg: any): string {
+  const eventId = typeof msg?.eventId === "string" ? msg.eventId : "";
+  if (eventId) return `event:${eventId}`;
   const channel = typeof msg?.channel === "string" ? msg.channel : "";
   const messageTs = typeof msg?.messageTs === "string" ? msg.messageTs : "";
   if (channel && messageTs) return `msg:${channel}:${messageTs}`;
-  const eventId = typeof msg?.eventId === "string" ? msg.eventId : "";
-  if (eventId) return `event:${eventId}`;
   return "";
+}
+
+function inboundMeta(msg: any): string {
+  const eventId = typeof msg?.eventId === "string" ? msg.eventId : "-";
+  const channel = typeof msg?.channel === "string" ? msg.channel : "-";
+  const threadTs = typeof msg?.threadTs === "string" ? msg.threadTs : "-";
+  const messageTs = typeof msg?.messageTs === "string" ? msg.messageTs : "-";
+  const user = typeof msg?.user === "string" ? msg.user : "-";
+  return `event_id=${eventId} channel=${channel} thread_ts=${threadTs} message_ts=${messageTs} user=${user}`;
 }
 
 function shouldProcessInboundEvent(msg: any): boolean {
   const key = buildInboundEventKey(msg);
-  if (!key) return true;
+  if (!key) {
+    log(`inbound key_missing ${inboundMeta(msg)}`);
+    return true;
+  }
   const now = Date.now();
   for (const [existingKey, expiresAt] of seenInboundEventKeys) {
     if (expiresAt <= now) seenInboundEventKeys.delete(existingKey);
   }
   if (seenInboundEventKeys.has(key)) {
-    log(`duplicate inbound event skipped: ${key}`);
+    log(`inbound duplicate skipped key=${key} ${inboundMeta(msg)}`);
     return false;
   }
   seenInboundEventKeys.set(key, now + INBOUND_EVENT_DEDUPE_TTL_MS);
+  log(`inbound accepted key=${key} ${inboundMeta(msg)}`);
   return true;
 }
 
@@ -1151,18 +1164,10 @@ async function handleCommand(channel: string, text: string, ts: string): Promise
   return false;
 }
 
-function startWorker(env: Record<string, string>) {
-  const workerPath = join(dirname(fileURLToPath(import.meta.url)), "socket-worker.js");
-  log(`starting worker: ${workerPath}`);
-
-  worker = spawn("node", [workerPath], {
-    env: { ...process.env, ...env },
-    stdio: ["ignore", "ignore", "ignore", "ipc"],
-    detached: false,
-  });
-
-  worker.on("message", (msg: any) => {
+function attachWorkerHandlers(w: ChildProcess) {
+  w.on("message", (msg: any) => {
     if (msg?.type === "slack_event") {
+      log(`inbound received ${inboundMeta(msg)}`);
       if (!shouldProcessInboundEvent(msg)) {
         return;
       }
@@ -1170,9 +1175,10 @@ function startWorker(env: Record<string, string>) {
       const isThreadReply = msg.threadTs !== msg.messageTs;
 
       if (!isAllowed && !isThreadReply) {
-        log(`blocked user: ${msg.user} (new thread)`);
+        log(`inbound blocked_user ${inboundMeta(msg)} reason=new_thread_not_allowlisted`);
         return;
       }
+      log(`inbound dispatch_handleMessage ${inboundMeta(msg)}`);
       handleMessage(msg.channel, msg.text, msg.threadTs, msg.messageTs, isAllowed);
     } else if (msg?.type === "resolved_emails") {
       if (allowedUsers && msg.users) {
@@ -1182,16 +1188,66 @@ function startWorker(env: Record<string, string>) {
         log(`resolved email users: ${msg.users.join(", ")}`);
       }
       allowlistReady = true;
+    } else if (msg?.type === "worker_connected") {
     }
   });
+}
 
-  worker.on("exit", (code) => {
+const GRACEFUL_RESTART_TIMEOUT_MS = 30000;
+
+function startWorker(env: Record<string, string>) {
+  const workerPath = join(dirname(fileURLToPath(import.meta.url)), "socket-worker.js");
+  log(`starting worker: ${workerPath}`);
+
+  const newWorker = spawn("node", [workerPath], {
+    env: { ...process.env, ...env },
+    stdio: ["ignore", "ignore", "ignore", "ipc"],
+    detached: false,
+  });
+
+  attachWorkerHandlers(newWorker);
+
+  const oldWorker = worker;
+  let swapped = false;
+
+  const doSwap = (reason: string) => {
+    if (swapped) return;
+    swapped = true;
+    worker = newWorker;
+    if (oldWorker && !oldWorker.killed) {
+      log(`graceful swap: ${reason} — terminating old worker`);
+      oldWorker.removeAllListeners();
+      oldWorker.kill("SIGTERM");
+    } else {
+      log(`worker ready: ${reason} (no old worker to terminate)`);
+    }
+  };
+
+  const onNewWorkerMessage = (msg: any) => {
+    if (msg?.type === "worker_connected") {
+      doSwap("new worker connected");
+    }
+  };
+  newWorker.on("message", onNewWorkerMessage);
+
+  const swapTimer = setTimeout(() => {
+    doSwap("timeout — forcing swap");
+  }, GRACEFUL_RESTART_TIMEOUT_MS);
+
+  newWorker.on("exit", (code) => {
+    clearTimeout(swapTimer);
     log(`worker exited: code=${code}`);
-    worker = null;
+    if (worker === newWorker) {
+      worker = null;
+    }
     if (initialized) {
       setTimeout(() => { log("restarting worker..."); startWorker(env); }, 5000);
     }
   });
+
+  if (!oldWorker) {
+    doSwap("initial start");
+  }
 
   log("worker spawned");
 }

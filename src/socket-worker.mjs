@@ -31,6 +31,16 @@ let botUserId;
 const EVENT_DEDUPE_TTL_MS = 10 * 60 * 1000;
 const seenEventKeys = new Map();
 
+function formatInboundMeta(body, ev) {
+  const eventId = typeof body?.event_id === "string" ? body.event_id : "-";
+  const eventType = typeof ev?.type === "string" ? ev.type : "-";
+  const channel = typeof ev?.channel === "string" ? ev.channel : "-";
+  const ts = typeof ev?.ts === "string" ? ev.ts : "-";
+  const threadTs = typeof ev?.thread_ts === "string" ? ev.thread_ts : "-";
+  const user = typeof ev?.user === "string" ? ev.user : "-";
+  return `event_id=${eventId} type=${eventType} channel=${channel} ts=${ts} thread_ts=${threadTs} user=${user}`;
+}
+
 function buildEventKey(body, ev) {
   const channel = typeof ev?.channel === "string" ? ev.channel : "";
   const ts = typeof ev?.ts === "string" ? ev.ts : "";
@@ -128,20 +138,39 @@ process.on("message", async (msg) => {
 });
 
 socketClient.on("slack_event", async ({ body, ack }) => {
-  if (ack) await ack();
   const ev = body?.event;
+  log(`ingress received ${formatInboundMeta(body, ev)}`);
+
+  if (ack) {
+    try {
+      await ack();
+      log(`ingress ack sent ${formatInboundMeta(body, ev)}`);
+    } catch (e) {
+      log(`ingress ack failed ${formatInboundMeta(body, ev)} err=${e?.message || String(e)}`);
+    }
+  }
+
   if (!ev) return;
 
   const eventKey = buildEventKey(body, ev);
   if (!shouldProcessEvent(eventKey)) {
-    log(`duplicate event skipped: ${eventKey}`);
+    log(`ingress duplicate skipped key=${eventKey} ${formatInboundMeta(body, ev)}`);
     return;
   }
 
   if (ev.type === "message" || ev.type === "app_mention") {
-    if (ev.bot_id || ev.user === botUserId) return;
-    if (ev.subtype && ev.subtype !== "file_share") return;
-    if (!ev.channel || !ev.text || !ev.ts) return;
+    if (ev.bot_id || ev.user === botUserId) {
+      log(`ingress dropped reason=self_or_bot ${formatInboundMeta(body, ev)}`);
+      return;
+    }
+    if (ev.subtype && ev.subtype !== "file_share") {
+      log(`ingress dropped reason=subtype_${ev.subtype} ${formatInboundMeta(body, ev)}`);
+      return;
+    }
+    if (!ev.channel || !ev.text || !ev.ts) {
+      log(`ingress dropped reason=missing_required_fields ${formatInboundMeta(body, ev)}`);
+      return;
+    }
 
     const text = ev.type === "app_mention"
       ? ev.text.replace(/<@[A-Z0-9]+>/g, "").trim()
@@ -158,27 +187,46 @@ socketClient.on("slack_event", async ({ body, ack }) => {
         eventId: typeof body?.event_id === "string" ? body.event_id : undefined,
         user: ev.user,
       });
-      log(`event sent via IPC: ${text.slice(0, 50)}`);
+      log(`ingress forwarded_to_plugin key=${eventKey || "-"} ${formatInboundMeta(body, ev)} text_preview=${text.slice(0, 50)}`);
     }
   }
 });
 
-socketClient.on("connected", () => log("Socket Mode connected"));
-socketClient.on("disconnected", () => log("Socket Mode disconnected"));
+// --- Connection health monitoring ---
+// SDK handles ping/pong internally (serverPingTimeout=30s, clientPingTimeout=5s).
+// We only exit if SDK fires 'disconnected' AND fails to reconnect within RECONNECT_GRACE_MS.
+const RECONNECT_GRACE_MS = 60000; // 60s grace for SDK auto-reconnect
+let disconnectedAt = null;
+let connectionAlive = false;
+
+socketClient.on("connected", () => {
+  connectionAlive = true;
+  disconnectedAt = null;
+  log("Socket Mode connected");
+  if (process.send) process.send({ type: "worker_connected" });
+});
+
+socketClient.on("disconnected", () => {
+  connectionAlive = false;
+  disconnectedAt = Date.now();
+  log("Socket Mode disconnected — waiting for SDK auto-reconnect");
+});
+
+socketClient.on("reconnecting", () => {
+  log("Socket Mode reconnecting...");
+});
 
 await init();
 await socketClient.start();
-log("worker running");
+log("worker running (idle-exit disabled, relying on SDK ping/pong health check)");
 
-const STALE_TIMEOUT = 120000;
-let lastEventTime = Date.now();
-
-socketClient.on("slack_event", () => { lastEventTime = Date.now(); });
-
+// Watchdog: only exit if disconnected AND SDK failed to reconnect within grace period
 setInterval(() => {
-  const elapsed = Date.now() - lastEventTime;
-  if (elapsed > STALE_TIMEOUT) {
-    log(`no events for ${Math.round(elapsed / 1000)}s, exiting for restart`);
-    process.exit(1);
+  if (disconnectedAt && !connectionAlive) {
+    const elapsed = Date.now() - disconnectedAt;
+    if (elapsed > RECONNECT_GRACE_MS) {
+      log(`disconnected for ${Math.round(elapsed / 1000)}s with no reconnect — exiting for restart`);
+      process.exit(1);
+    }
   }
-}, 30000);
+}, 15000);

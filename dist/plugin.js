@@ -12431,6 +12431,7 @@ import { spawn } from "child_process";
 import { appendFileSync, readFileSync, writeFileSync, existsSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
+import { homedir } from "os";
 var LOG_FILE = "/tmp/slack-agent-plugin.log";
 var SLACK_MSG_LIMIT = 3900;
 var RESPONSE_STALL_MS = 45e3;
@@ -12441,6 +12442,7 @@ var BG_OUTPUT_CANDIDATE_PATHS = ["/background/output", "/background_output", "/a
 var BG_TASK_ID_PATTERN = /^bg_[A-Za-z0-9][A-Za-z0-9_-]*$/;
 var AUTO_ATTACH_MAX_TASKS_PER_MESSAGE = 3;
 var AUTO_ATTACH_MAX_MONITOR_BUDGET_MS = 12e4;
+var INBOUND_EVENT_DEDUPE_TTL_MS = 10 * 60 * 1e3;
 var initialized = false;
 var worker = null;
 var pluginClient = null;
@@ -12453,8 +12455,14 @@ var allowedUsers = null;
 var allowlistReady = true;
 var attachBgTimeoutMs = DEFAULT_ATTACH_TIMEOUT_SEC * 1e3;
 var cachedBackgroundOutputPath = null;
+var seenInboundEventKeys = /* @__PURE__ */ new Map();
 var pendingPermissions = /* @__PURE__ */ new Map();
 var pendingQuestions = /* @__PURE__ */ new Map();
+function expandTilde(p) {
+  if (p === "~") return homedir();
+  if (p.startsWith("~/")) return join(homedir(), p.slice(2));
+  return p;
+}
 function log(m) {
   try {
     appendFileSync(LOG_FILE, `[${(/* @__PURE__ */ new Date()).toISOString()}] plugin: ${m}
@@ -12518,6 +12526,40 @@ function markdownToSlackMrkdwn(text) {
 }
 function sendIPC(msg) {
   if (worker && worker.connected) worker.send(msg);
+}
+function buildInboundEventKey(msg) {
+  const eventId = typeof msg?.eventId === "string" ? msg.eventId : "";
+  if (eventId) return `event:${eventId}`;
+  const channel = typeof msg?.channel === "string" ? msg.channel : "";
+  const messageTs = typeof msg?.messageTs === "string" ? msg.messageTs : "";
+  if (channel && messageTs) return `msg:${channel}:${messageTs}`;
+  return "";
+}
+function inboundMeta(msg) {
+  const eventId = typeof msg?.eventId === "string" ? msg.eventId : "-";
+  const channel = typeof msg?.channel === "string" ? msg.channel : "-";
+  const threadTs = typeof msg?.threadTs === "string" ? msg.threadTs : "-";
+  const messageTs = typeof msg?.messageTs === "string" ? msg.messageTs : "-";
+  const user = typeof msg?.user === "string" ? msg.user : "-";
+  return `event_id=${eventId} channel=${channel} thread_ts=${threadTs} message_ts=${messageTs} user=${user}`;
+}
+function shouldProcessInboundEvent(msg) {
+  const key = buildInboundEventKey(msg);
+  if (!key) {
+    log(`inbound key_missing ${inboundMeta(msg)}`);
+    return true;
+  }
+  const now = Date.now();
+  for (const [existingKey, expiresAt] of seenInboundEventKeys) {
+    if (expiresAt <= now) seenInboundEventKeys.delete(existingKey);
+  }
+  if (seenInboundEventKeys.has(key)) {
+    log(`inbound duplicate skipped key=${key} ${inboundMeta(msg)}`);
+    return false;
+  }
+  seenInboundEventKeys.set(key, now + INBOUND_EVENT_DEDUPE_TTL_MS);
+  log(`inbound accepted key=${key} ${inboundMeta(msg)}`);
+  return true;
 }
 function slackSend(channel, text, threadTs) {
   sendIPC({ type: "slack_send", channel, text: markdownToSlackMrkdwn(text), threadTs });
@@ -13287,13 +13329,14 @@ async function handleCommand(channel, text, ts) {
       slackSend(channel, `*\uD604\uC7AC \uC6CC\uD06C\uC2A4\uD398\uC774\uC2A4:* \`${currentDir}\``, ts);
       return true;
     }
+    const resolvedDir = expandTilde(arg);
     if (!sessions[ts]) {
-      sessions[ts] = { sessionId: "", channel, lastUsed: Date.now(), directory: arg };
+      sessions[ts] = { sessionId: "", channel, lastUsed: Date.now(), directory: resolvedDir };
     } else {
-      sessions[ts].directory = arg;
+      sessions[ts].directory = resolvedDir;
     }
     saveSessions();
-    slackSend(channel, `\u2705 \uC6CC\uD06C\uC2A4\uD398\uC774\uC2A4 \uBCC0\uACBD: \`${arg}\`
+    slackSend(channel, `\u2705 \uC6CC\uD06C\uC2A4\uD398\uC774\uC2A4 \uBCC0\uACBD: \`${resolvedDir}\`
 \uB2E4\uC74C \uBA54\uC2DC\uC9C0\uBD80\uD130 \uC774 \uB514\uB809\uD1A0\uB9AC\uC5D0\uC11C \uC138\uC158 \uC0DD\uC131.`, ts);
     return true;
   }
@@ -13404,22 +13447,20 @@ ${textParts}`, ts);
   }
   return false;
 }
-function startWorker(env) {
-  const workerPath = join(dirname(fileURLToPath(import.meta.url)), "socket-worker.js");
-  log(`starting worker: ${workerPath}`);
-  worker = spawn("node", [workerPath], {
-    env: { ...process.env, ...env },
-    stdio: ["ignore", "ignore", "ignore", "ipc"],
-    detached: false
-  });
-  worker.on("message", (msg) => {
+function attachWorkerHandlers(w) {
+  w.on("message", (msg) => {
     if (msg?.type === "slack_event") {
+      log(`inbound received ${inboundMeta(msg)}`);
+      if (!shouldProcessInboundEvent(msg)) {
+        return;
+      }
       const isAllowed = !allowedUsers || !allowlistReady || allowedUsers.has(msg.user);
       const isThreadReply = msg.threadTs !== msg.messageTs;
       if (!isAllowed && !isThreadReply) {
-        log(`blocked user: ${msg.user} (new thread)`);
+        log(`inbound blocked_user ${inboundMeta(msg)} reason=new_thread_not_allowlisted`);
         return;
       }
+      log(`inbound dispatch_handleMessage ${inboundMeta(msg)}`);
       handleMessage(msg.channel, msg.text, msg.threadTs, msg.messageTs, isAllowed);
     } else if (msg?.type === "resolved_emails") {
       if (allowedUsers && msg.users) {
@@ -13429,11 +13470,49 @@ function startWorker(env) {
         log(`resolved email users: ${msg.users.join(", ")}`);
       }
       allowlistReady = true;
+    } else if (msg?.type === "worker_connected") {
     }
   });
-  worker.on("exit", (code) => {
+}
+var GRACEFUL_RESTART_TIMEOUT_MS = 3e4;
+function startWorker(env) {
+  const workerPath = join(dirname(fileURLToPath(import.meta.url)), "socket-worker.js");
+  log(`starting worker: ${workerPath}`);
+  const newWorker = spawn("node", [workerPath], {
+    env: { ...process.env, ...env },
+    stdio: ["ignore", "ignore", "ignore", "ipc"],
+    detached: false
+  });
+  attachWorkerHandlers(newWorker);
+  const oldWorker = worker;
+  let swapped = false;
+  const doSwap = (reason) => {
+    if (swapped) return;
+    swapped = true;
+    worker = newWorker;
+    if (oldWorker && !oldWorker.killed) {
+      log(`graceful swap: ${reason} \u2014 terminating old worker`);
+      oldWorker.removeAllListeners();
+      oldWorker.kill("SIGTERM");
+    } else {
+      log(`worker ready: ${reason} (no old worker to terminate)`);
+    }
+  };
+  const onNewWorkerMessage = (msg) => {
+    if (msg?.type === "worker_connected") {
+      doSwap("new worker connected");
+    }
+  };
+  newWorker.on("message", onNewWorkerMessage);
+  const swapTimer = setTimeout(() => {
+    doSwap("timeout \u2014 forcing swap");
+  }, GRACEFUL_RESTART_TIMEOUT_MS);
+  newWorker.on("exit", (code) => {
+    clearTimeout(swapTimer);
     log(`worker exited: code=${code}`);
-    worker = null;
+    if (worker === newWorker) {
+      worker = null;
+    }
     if (initialized) {
       setTimeout(() => {
         log("restarting worker...");
@@ -13441,6 +13520,9 @@ function startWorker(env) {
       }, 5e3);
     }
   });
+  if (!oldWorker) {
+    doSwap("initial start");
+  }
   log("worker spawned");
 }
 function stopWorker() {
@@ -13479,7 +13561,7 @@ var pluginModule = {
       return { tool: { slack_status: slackStatusTool } };
     }
     pluginClient = input.client;
-    defaultDirectory = options?.DEFAULT_DIRECTORY || process.env.SLACK_DEFAULT_DIRECTORY || input.directory;
+    defaultDirectory = expandTilde(options?.DEFAULT_DIRECTORY || process.env.SLACK_DEFAULT_DIRECTORY || input.directory);
     attachBgTimeoutMs = resolveAttachTimeoutMs(options?.ATTACH_TIMEOUT_SEC);
     log(`attach timeout set to ${attachBgTimeoutMs}ms`);
     sessionsPath = join(input.directory, "slack-sessions.json");
