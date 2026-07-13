@@ -12549,18 +12549,20 @@ function shouldProcessInboundEvent(msg) {
     log(`inbound key_missing ${inboundMeta(msg)}`);
     return true;
   }
-  const now = Date.now();
-  for (const [existingKey, expiresAt] of seenInboundEventKeys) {
-    if (expiresAt <= now) seenInboundEventKeys.delete(existingKey);
-  }
   if (seenInboundEventKeys.has(key)) {
     log(`inbound duplicate skipped key=${key} ${inboundMeta(msg)}`);
     return false;
   }
-  seenInboundEventKeys.set(key, now + INBOUND_EVENT_DEDUPE_TTL_MS);
+  seenInboundEventKeys.set(key, Date.now() + INBOUND_EVENT_DEDUPE_TTL_MS);
   log(`inbound accepted key=${key} ${inboundMeta(msg)}`);
   return true;
 }
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, expiresAt] of seenInboundEventKeys) {
+    if (expiresAt <= now) seenInboundEventKeys.delete(key);
+  }
+}, 6e4);
 function slackSend(channel, text, threadTs) {
   sendIPC({ type: "slack_send", channel, text: markdownToSlackMrkdwn(text), threadTs });
 }
@@ -13475,7 +13477,9 @@ function attachWorkerHandlers(w) {
   });
 }
 var GRACEFUL_RESTART_TIMEOUT_MS = 3e4;
-function startWorker(env) {
+var workerEnvCache = null;
+function startWorker(env, dyingWorker) {
+  workerEnvCache = env;
   const workerPath = join(dirname(fileURLToPath(import.meta.url)), "socket-worker.js");
   log(`starting worker: ${workerPath}`);
   const newWorker = spawn("node", [workerPath], {
@@ -13484,7 +13488,7 @@ function startWorker(env) {
     detached: false
   });
   attachWorkerHandlers(newWorker);
-  const oldWorker = worker;
+  const oldWorker = dyingWorker ?? null;
   let swapped = false;
   const doSwap = (reason) => {
     if (swapped) return;
@@ -13513,10 +13517,10 @@ function startWorker(env) {
     if (worker === newWorker) {
       worker = null;
     }
-    if (initialized) {
+    if (initialized && workerEnvCache) {
       setTimeout(() => {
         log("restarting worker...");
-        startWorker(env);
+        startWorker(workerEnvCache, newWorker);
       }, 5e3);
     }
   });

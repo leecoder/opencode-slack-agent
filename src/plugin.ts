@@ -141,18 +141,21 @@ function shouldProcessInboundEvent(msg: any): boolean {
     log(`inbound key_missing ${inboundMeta(msg)}`);
     return true;
   }
-  const now = Date.now();
-  for (const [existingKey, expiresAt] of seenInboundEventKeys) {
-    if (expiresAt <= now) seenInboundEventKeys.delete(existingKey);
-  }
   if (seenInboundEventKeys.has(key)) {
     log(`inbound duplicate skipped key=${key} ${inboundMeta(msg)}`);
     return false;
   }
-  seenInboundEventKeys.set(key, now + INBOUND_EVENT_DEDUPE_TTL_MS);
+  seenInboundEventKeys.set(key, Date.now() + INBOUND_EVENT_DEDUPE_TTL_MS);
   log(`inbound accepted key=${key} ${inboundMeta(msg)}`);
   return true;
 }
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, expiresAt] of seenInboundEventKeys) {
+    if (expiresAt <= now) seenInboundEventKeys.delete(key);
+  }
+}, 60_000);
 
 function slackSend(channel: string, text: string, threadTs?: string) {
   sendIPC({ type: "slack_send", channel, text: markdownToSlackMrkdwn(text), threadTs });
@@ -1194,8 +1197,10 @@ function attachWorkerHandlers(w: ChildProcess) {
 }
 
 const GRACEFUL_RESTART_TIMEOUT_MS = 30000;
+let workerEnvCache: Record<string, string> | null = null;
 
-function startWorker(env: Record<string, string>) {
+function startWorker(env: Record<string, string>, dyingWorker?: ChildProcess | null) {
+  workerEnvCache = env;
   const workerPath = join(dirname(fileURLToPath(import.meta.url)), "socket-worker.js");
   log(`starting worker: ${workerPath}`);
 
@@ -1207,7 +1212,7 @@ function startWorker(env: Record<string, string>) {
 
   attachWorkerHandlers(newWorker);
 
-  const oldWorker = worker;
+  const oldWorker = dyingWorker ?? null;
   let swapped = false;
 
   const doSwap = (reason: string) => {
@@ -1240,8 +1245,8 @@ function startWorker(env: Record<string, string>) {
     if (worker === newWorker) {
       worker = null;
     }
-    if (initialized) {
-      setTimeout(() => { log("restarting worker..."); startWorker(env); }, 5000);
+    if (initialized && workerEnvCache) {
+      setTimeout(() => { log("restarting worker..."); startWorker(workerEnvCache!, newWorker); }, 5000);
     }
   });
 

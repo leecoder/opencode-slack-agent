@@ -195,24 +195,22 @@ socketClient.on("slack_event", async ({ body, ack }) => {
 // --- Connection health monitoring ---
 // SDK handles ping/pong internally (serverPingTimeout=30s, clientPingTimeout=5s).
 // We only exit if SDK fires 'disconnected' AND fails to reconnect within RECONNECT_GRACE_MS.
-const RECONNECT_GRACE_MS = 60000; // 60s grace for SDK auto-reconnect
-let disconnectedAt = null;
-let connectionAlive = false;
+const RECONNECT_GRACE_MS = 60000;
+let outageStartedAt = null;
 
 socketClient.on("connected", () => {
-  connectionAlive = true;
-  disconnectedAt = null;
+  outageStartedAt = null;
   log("Socket Mode connected");
   if (process.send) process.send({ type: "worker_connected" });
 });
 
 socketClient.on("disconnected", () => {
-  connectionAlive = false;
-  disconnectedAt = Date.now();
+  if (!outageStartedAt) outageStartedAt = Date.now();
   log("Socket Mode disconnected — waiting for SDK auto-reconnect");
 });
 
 socketClient.on("reconnecting", () => {
+  if (!outageStartedAt) outageStartedAt = Date.now();
   log("Socket Mode reconnecting...");
 });
 
@@ -220,12 +218,11 @@ await init();
 await socketClient.start();
 log("worker running (idle-exit disabled, relying on SDK ping/pong health check)");
 
-// Watchdog: only exit if disconnected AND SDK failed to reconnect within grace period
 setInterval(() => {
-  if (disconnectedAt && !connectionAlive) {
-    const elapsed = Date.now() - disconnectedAt;
+  if (outageStartedAt) {
+    const elapsed = Date.now() - outageStartedAt;
     if (elapsed > RECONNECT_GRACE_MS) {
-      log(`disconnected for ${Math.round(elapsed / 1000)}s with no reconnect — exiting for restart`);
+      log(`connection unhealthy for ${Math.round(elapsed / 1000)}s with no reconnect — exiting for restart`);
       process.exit(1);
     }
   }
