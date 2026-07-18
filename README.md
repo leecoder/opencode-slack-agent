@@ -54,6 +54,7 @@ Add plugin with tokens to `~/.config/opencode/opencode.json`:
 | `SLACK_BOT_TOKEN` | — | Required. Bot token (`xoxb-...`) |
 | `SLACK_APP_TOKEN` | — | Required. App-level token (`xapp-...`) |
 | `DEFAULT_DIRECTORY` | serve directory | Default workspace for new sessions |
+| `DEFAULT_AGENT` | — | Agent name to use for prompts in Slack threads. Reads plugin option first, then `SLACK_DEFAULT_AGENT` env var. Can be overridden per-message with `@<agent>` or per-thread with `!agent`; cleared by `!agent reset`. Useful when the global opencode default agent has an identity you don't want exposed in Slack (e.g., a chat-facing persona) |
 | `ALLOWED_USERS` | — | Comma-separated Slack user IDs or emails. If unset, everyone can use the bot |
 | `ATTACH_TIMEOUT_SEC` | 600 | Timeout (seconds) for `!attach bg_xxx` polling. Reads plugin option first, then env var fallback. Invalid/non-positive values fall back to 600 |
 
