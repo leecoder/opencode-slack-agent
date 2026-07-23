@@ -1217,10 +1217,12 @@ function attachWorkerHandlers(w: ChildProcess) {
         return;
       }
 
-      // Thread reply: only respond if bot has an existing session for this thread or was explicitly mentioned
+      const isDM = typeof msg.channel === "string" && msg.channel.startsWith("D");
       if (isThreadReply && !isMention && !getSessionForThread(msg.threadTs)) {
-        log(`inbound ignored ${inboundMeta(msg)} reason=thread_reply_no_session`);
-        return;
+        if (!isAllowed || !isDM) {
+          log(`inbound ignored ${inboundMeta(msg)} reason=thread_reply_no_session`);
+          return;
+        }
       }
 
       log(`inbound dispatch_handleMessage ${inboundMeta(msg)}`);

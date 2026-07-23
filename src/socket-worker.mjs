@@ -172,7 +172,8 @@ socketClient.on("slack_event", async ({ body, ack }) => {
       return;
     }
 
-    const text = ev.type === "app_mention"
+    const isMention = ev.type === "app_mention" || (botUserId && ev.text.includes(`<@${botUserId}>`));
+    const text = isMention
       ? ev.text.replace(/<@[A-Z0-9]+>/g, "").trim()
       : ev.text;
 
@@ -186,7 +187,7 @@ socketClient.on("slack_event", async ({ body, ack }) => {
         messageTs: ev.ts,
         eventId: typeof body?.event_id === "string" ? body.event_id : undefined,
         user: ev.user,
-        eventSubtype: ev.type,
+        eventSubtype: isMention ? "app_mention" : ev.type,
       });
       log(`ingress forwarded_to_plugin key=${eventKey || "-"} ${formatInboundMeta(body, ev)} text_preview=${text.slice(0, 50)}`);
     }
