@@ -1325,7 +1325,9 @@ const pluginModule: PluginModule = {
   server: async (input: PluginInput, options?: PluginOptions) => {
     log("server() called");
     if (initialized) return { tool: { slack_status: slackStatusTool } };
+    initialized = true;
 
+    try {
     const botToken = (options?.SLACK_BOT_TOKEN as string) || process.env.SLACK_BOT_TOKEN || "";
     const appToken = (options?.SLACK_APP_TOKEN as string) || process.env.SLACK_APP_TOKEN || "";
 
@@ -1334,13 +1336,11 @@ const pluginModule: PluginModule = {
       ?? "true";
     if (enabled === "false" || enabled === "0") {
       log("DISABLED — SLACK_AGENT_ENABLED=false");
-      initialized = true;
       return { tool: { slack_status: slackStatusTool } };
     }
 
     if (!botToken || !appToken) {
       log("DISABLED — missing tokens");
-      initialized = true;
       return { tool: { slack_status: slackStatusTool } };
     }
 
@@ -1375,7 +1375,6 @@ const pluginModule: PluginModule = {
     if (emailsToResolve.length > 0) {
       sendIPC({ type: "resolve_emails", emails: emailsToResolve });
     }
-    initialized = true;
     log("plugin initialized (hybrid sidecar + persistent sessions)");
 
     return {
@@ -1416,6 +1415,15 @@ const pluginModule: PluginModule = {
         log("shutdown");
       },
     };
+    } catch (err) {
+      stopWorker();
+      pluginClient = null;
+      allowedUsers = null;
+      allowlistReady = true;
+      initialized = false;
+      log(`server() failed: ${err}`);
+      throw err;
+    }
   },
 };
 
