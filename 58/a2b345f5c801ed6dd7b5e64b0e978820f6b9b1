@@ -1,0 +1,34 @@
+src/plugin.ts
+  s_fdf4dd12af5cb0::t_53023924abbb55 298,303-304
+  s_fdf4dd12af5cb0::t_ec7434b6261fad 880-883,886,888,896-897,900,911-913
+  s_fdf4dd12af5cb0::t_7f39257eecde0f 248
+  s_fdf4dd12af5cb0::t_41500178915960 504
+  s_fdf4dd12af5cb0::t_3b73ea6cb3fe04 85-92
+  s_fdf4dd12af5cb0::t_f89b22b5900854 332-333,335
+  s_fdf4dd12af5cb0::t_16b95841a217af 502,506,510-512,515
+  s_fdf4dd12af5cb0::t_aabded12dcc958 1200
+dist/plugin.js
+  s_fdf4dd12af5cb0::t_76fbc370e2bf96 13198-13199,13202,13204,13207,13210,13217-13219
+  s_fdf4dd12af5cb0::t_1ddad80636a965 12643,12716-12717,12719
+  s_fdf4dd12af5cb0::t_25ea9d463ab154 12879
+  s_fdf4dd12af5cb0::t_4ba6deb2e7caf3 13480
+  s_fdf4dd12af5cb0::t_51dac9e092053c 12877,12881,12885-12887,12890-12891
+  s_fdf4dd12af5cb0::t_96df6497544026 12687,12692-12693
+  s_fdf4dd12af5cb0::t_efba81bd7526d8 12498-12505
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "58a2b345f5c801ed6dd7b5e64b0e978820f6b9b1",
+  "prompts": {},
+  "sessions": {
+    "s_fdf4dd12af5cb0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ses_076a2a666ffeI41E950x3dHN2s",
+        "model": "unknown"
+      },
+      "human_author": "leecoder <leecoder@aol.com>"
+    }
+  }
+}
