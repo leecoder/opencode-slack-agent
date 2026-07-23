@@ -1,0 +1,21 @@
+package-lock.json
+  s_3a600286441664::t_f71cee10276c91 3,9
+package.json
+  s_3a600286441664::t_37b13f557c2828 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "f2ed21f9129e9716787a2dbde66b157eb08b084c",
+  "prompts": {},
+  "sessions": {
+    "s_3a600286441664": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_076a2a666ffeI41E950x3dHN2s",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "leecoder <leecoder@aol.com>"
+    }
+  }
+}
