@@ -59,6 +59,10 @@ function log(m: string) {
   try { appendFileSync(LOG_FILE, `[${new Date().toISOString()}] plugin: ${m}\n`); } catch {}
 }
 
+function getMsgId(m: any): string | undefined {
+  return m?.id || m?.info?.id;
+}
+
 function loadSessions() {
   try {
     if (existsSync(sessionsPath)) {
@@ -83,12 +87,14 @@ function getSessionForThread(threadTs: string): string | null {
 
 function saveSession(threadTs: string, sessionId: string, channel: string, directory?: string) {
   const existing = sessions[threadTs];
+  const sessionChanged = existing && existing.sessionId !== sessionId;
   sessions[threadTs] = {
     ...existing,
     sessionId,
     channel,
     lastUsed: Date.now(),
     ...(directory ? { directory } : {}),
+    ...(sessionChanged ? { lastSyncedMessageId: undefined } : {}),
   };
   saveSessions();
 }
@@ -294,7 +300,7 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
             path: { id: sessionId },
           });
           if (Array.isArray(preMessages) && preMessages.length > 0) {
-            syncCursor = preMessages[preMessages.length - 1]?.id;
+            syncCursor = getMsgId(preMessages[preMessages.length - 1]);
             log(`pre-prompt cursor fallback: ${syncCursor} (${preMessages.length} messages)`);
           }
         } catch (preFetchErr: any) {
@@ -877,8 +883,6 @@ async function syncAssistantMessagesSinceCursor(
   });
   if (!Array.isArray(messages) || messages.length === 0) return cursorId;
 
-  const getMsgId = (m: any): string | undefined => m?.id || m?.info?.id;
-
   log(`[SYNC-MESSAGES] total=${messages.length} cursorId=${cursorId} firstId=${getMsgId(messages[0])} lastId=${getMsgId(messages[messages.length - 1])}`);
 
   let startIndex = 0;
@@ -1124,7 +1128,7 @@ async function handleCommand(channel: string, text: string, ts: string): Promise
       const cursor = session.lastSyncedMessageId;
       let startIndex = 0;
       if (cursor) {
-        const cursorIdx = messages.findIndex((m: any) => m.id === cursor);
+        const cursorIdx = messages.findIndex((m: any) => getMsgId(m) === cursor);
         if (cursorIdx >= 0) startIndex = cursorIdx + 1;
       }
 
@@ -1154,8 +1158,9 @@ async function handleCommand(channel: string, text: string, ts: string): Promise
       }
 
       const lastMsg = messages[messages.length - 1];
-      if (lastMsg?.id) {
-        sessions[ts].lastSyncedMessageId = lastMsg.id;
+      const lastId = getMsgId(lastMsg);
+      if (lastId) {
+        sessions[ts].lastSyncedMessageId = lastId;
         saveSessions();
       }
 

@@ -12470,6 +12470,9 @@ function log(m) {
   } catch {
   }
 }
+function getMsgId(m) {
+  return m?.id || m?.info?.id;
+}
 function loadSessions() {
   try {
     if (existsSync(sessionsPath)) {
@@ -12496,12 +12499,14 @@ function getSessionForThread(threadTs) {
 }
 function saveSession(threadTs, sessionId, channel, directory) {
   const existing = sessions[threadTs];
+  const sessionChanged = existing && existing.sessionId !== sessionId;
   sessions[threadTs] = {
     ...existing,
     sessionId,
     channel,
     lastUsed: Date.now(),
-    ...directory ? { directory } : {}
+    ...directory ? { directory } : {},
+    ...sessionChanged ? { lastSyncedMessageId: void 0 } : {}
   };
   saveSessions();
 }
@@ -12683,7 +12688,7 @@ async function handleMessage(channel, text, ts, messageTs, isAllowed = true) {
             path: { id: sessionId }
           });
           if (Array.isArray(preMessages) && preMessages.length > 0) {
-            syncCursor = preMessages[preMessages.length - 1]?.id;
+            syncCursor = getMsgId(preMessages[preMessages.length - 1]);
             log(`pre-prompt cursor fallback: ${syncCursor} (${preMessages.length} messages)`);
           }
         } catch (preFetchErr) {
@@ -13195,7 +13200,6 @@ async function syncAssistantMessagesSinceCursor(sessionId, channel, threadTs, cu
     path: { id: sessionId }
   });
   if (!Array.isArray(messages) || messages.length === 0) return cursorId;
-  const getMsgId = (m) => m?.id || m?.info?.id;
   log(`[SYNC-MESSAGES] total=${messages.length} cursorId=${cursorId} firstId=${getMsgId(messages[0])} lastId=${getMsgId(messages[messages.length - 1])}`);
   let startIndex = 0;
   if (cursorId) {
@@ -13414,7 +13418,7 @@ async function handleCommand(channel, text, ts) {
       const cursor = session.lastSyncedMessageId;
       let startIndex = 0;
       if (cursor) {
-        const cursorIdx = messages.findIndex((m) => m.id === cursor);
+        const cursorIdx = messages.findIndex((m) => getMsgId(m) === cursor);
         if (cursorIdx >= 0) startIndex = cursorIdx + 1;
       }
       const unsyncedMessages = messages.slice(startIndex).filter(
@@ -13438,8 +13442,9 @@ ${textParts}`, ts);
         }
       }
       const lastMsg = messages[messages.length - 1];
-      if (lastMsg?.id) {
-        sessions[ts].lastSyncedMessageId = lastMsg.id;
+      const lastId = getMsgId(lastMsg);
+      if (lastId) {
+        sessions[ts].lastSyncedMessageId = lastId;
         saveSessions();
       }
       const syncedCount = unsyncedMessages.filter((m) => {
