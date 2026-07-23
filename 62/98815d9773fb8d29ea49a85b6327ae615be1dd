@@ -1,0 +1,25 @@
+src/plugin.ts
+  s_fdf4dd12af5cb0::t_c7085d3af0cc4e 1328
+  s_fdf4dd12af5cb0::t_bd499b255eb71d 1418,1423-1426
+  s_fdf4dd12af5cb0::t_78565cb095a0b5 1419
+  s_fdf4dd12af5cb0::t_aebf99eb7b6877 1420-1422
+  s_fdf4dd12af5cb0::t_c362b9a9443e0f 1330
+dist/plugin.js
+  s_fdf4dd12af5cb0::t_91db2ddac90b33 13595-13652,13654-13656,13658-13669,13671-13680
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "6298815d9773fb8d29ea49a85b6327ae615be1dd",
+  "prompts": {},
+  "sessions": {
+    "s_fdf4dd12af5cb0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ses_076a2a666ffeI41E950x3dHN2s",
+        "model": "unknown"
+      },
+      "human_author": null
+    }
+  }
+}
