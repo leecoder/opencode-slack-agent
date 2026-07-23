@@ -13495,9 +13495,12 @@ function attachWorkerHandlers(w) {
         log(`inbound blocked_user ${inboundMeta(msg)} reason=new_thread_not_allowlisted`);
         return;
       }
+      const isDM = typeof msg.channel === "string" && msg.channel.startsWith("D");
       if (isThreadReply && !isMention && !getSessionForThread(msg.threadTs)) {
-        log(`inbound ignored ${inboundMeta(msg)} reason=thread_reply_no_session`);
-        return;
+        if (!isAllowed || !isDM) {
+          log(`inbound ignored ${inboundMeta(msg)} reason=thread_reply_no_session`);
+          return;
+        }
       }
       log(`inbound dispatch_handleMessage ${inboundMeta(msg)}`);
       handleMessage(msg.channel, msg.text, msg.threadTs, msg.messageTs, isAllowed);
