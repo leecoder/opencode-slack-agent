@@ -1,0 +1,21 @@
+src/plugin.ts
+  s_27cd496b8685ee::t_009862478c8162 1179,1185-1191
+src/socket-worker.mjs
+  s_27cd496b8685ee::t_5e92975bb4ef65 189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "ba64751c80990d6de772652e4369373918a27454",
+  "prompts": {},
+  "sessions": {
+    "s_27cd496b8685ee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ses_073de65b8ffeCMMFCGNr0lCBNv",
+        "model": "unknown"
+      },
+      "human_author": "leecoder <leecoder@aol.com>"
+    }
+  }
+}
