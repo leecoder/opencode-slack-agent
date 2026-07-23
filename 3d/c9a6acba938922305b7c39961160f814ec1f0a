@@ -1,0 +1,25 @@
+src/plugin.ts
+  s_fdf4dd12af5cb0::t_de6d3dec12f601 303
+  s_fdf4dd12af5cb0::t_922519b29ee08b 1161-1163
+  s_fdf4dd12af5cb0::t_321ba03d6d339a 90,97
+  s_fdf4dd12af5cb0::t_e8f769affbafb1 1131
+  s_fdf4dd12af5cb0::t_db6e0b13eaf78e 62-65
+dist/plugin.js
+  s_fdf4dd12af5cb0::t_7e161fa564bc1f 12473-12475,12502,12508-12509,12691,13421,13445-13447
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "3dc9a6acba938922305b7c39961160f814ec1f0a",
+  "prompts": {},
+  "sessions": {
+    "s_fdf4dd12af5cb0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ses_076a2a666ffeI41E950x3dHN2s",
+        "model": "unknown"
+      },
+      "human_author": "leecoder <leecoder@aol.com>"
+    }
+  }
+}
