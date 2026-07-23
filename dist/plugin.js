@@ -13591,85 +13591,93 @@ var pluginModule = {
   server: async (input, options) => {
     log("server() called");
     if (initialized) return { tool: { slack_status: slackStatusTool } };
-    const botToken = options?.SLACK_BOT_TOKEN || process.env.SLACK_BOT_TOKEN || "";
-    const appToken = options?.SLACK_APP_TOKEN || process.env.SLACK_APP_TOKEN || "";
-    const enabled = process.env.SLACK_AGENT_ENABLED ?? options?.SLACK_AGENT_ENABLED ?? "true";
-    if (enabled === "false" || enabled === "0") {
-      log("DISABLED \u2014 SLACK_AGENT_ENABLED=false");
-      initialized = true;
-      return { tool: { slack_status: slackStatusTool } };
-    }
-    if (!botToken || !appToken) {
-      log("DISABLED \u2014 missing tokens");
-      initialized = true;
-      return { tool: { slack_status: slackStatusTool } };
-    }
-    pluginClient = input.client;
-    defaultDirectory = expandTilde(options?.DEFAULT_DIRECTORY || process.env.SLACK_DEFAULT_DIRECTORY || input.directory);
-    attachBgTimeoutMs = resolveAttachTimeoutMs(options?.ATTACH_TIMEOUT_SEC);
-    log(`attach timeout set to ${attachBgTimeoutMs}ms`);
-    sessionsPath = join(input.directory, "slack-sessions.json");
-    loadSessions();
-    log(`sessions loaded: ${Object.keys(sessions).length} entries from ${sessionsPath}`);
-    const allowedUsersStr = options?.ALLOWED_USERS || process.env.SLACK_ALLOWED_USERS || "";
-    let emailsToResolve = [];
-    if (allowedUsersStr) {
-      const entries = allowedUsersStr.split(",").map((u) => u.trim()).filter(Boolean);
-      allowedUsers = new Set(entries.filter((e) => e.startsWith("U")));
-      emailsToResolve = entries.filter((e) => e.includes("@"));
-      log(`allowed users: ${[...allowedUsers].join(", ")}${emailsToResolve.length ? ` + ${emailsToResolve.length} emails to resolve` : ""}`);
-    }
-    const workerEnv = {
-      SLACK_BOT_TOKEN: botToken,
-      SLACK_APP_TOKEN: appToken
-    };
-    const caCerts = options?.NODE_EXTRA_CA_CERTS || process.env.NODE_EXTRA_CA_CERTS || "";
-    if (caCerts) workerEnv.NODE_EXTRA_CA_CERTS = caCerts;
-    if (emailsToResolve.length > 0) {
-      allowlistReady = false;
-    }
-    startWorker(workerEnv);
-    if (emailsToResolve.length > 0) {
-      sendIPC({ type: "resolve_emails", emails: emailsToResolve });
-    }
     initialized = true;
-    log("plugin initialized (hybrid sidecar + persistent sessions)");
-    return {
-      tool: { slack_status: slackStatusTool },
-      "permission.ask": async (input2, output) => {
-        const sessionEntry = Object.entries(sessions).find(
-          ([_, s]) => s.sessionId === input2.sessionID
-        );
-        if (!sessionEntry) return;
-        const [threadTs, session] = sessionEntry;
-        pendingPermissions.set(input2.id, {
-          permissionId: input2.id,
-          sessionId: input2.sessionID,
-          threadTs,
-          channel: session.channel,
-          createdAt: Date.now()
-        });
-        let msg = "\u26A0\uFE0F *\uAD8C\uD55C \uC694\uCCAD*\n";
-        msg += `\`${input2.title}\`
-`;
-        if (input2.pattern) {
-          const patterns = Array.isArray(input2.pattern) ? input2.pattern.join(", ") : input2.pattern;
-          msg += `\uD328\uD134: \`${patterns}\`
-`;
-        }
-        msg += "\n*1.* \uD5C8\uC6A9 (\uC774\uBC88\uB9CC)\n*2.* \uD56D\uC0C1 \uD5C8\uC6A9\n*3.* \uAC70\uBD80\n";
-        msg += "_1/y/yes, 2/always, 3/n/no \uB85C \uB2F5\uD574\uC8FC\uC138\uC694_";
-        slackSend(session.channel, msg, threadTs);
-        log(`permission.ask forwarded to slack: ${input2.id} (${input2.title})`);
-        output.status = "ask";
-      },
-      dispose: async () => {
-        stopWorker();
-        pluginClient = null;
-        initialized = false;
-        log("shutdown");
+    try {
+      const botToken = options?.SLACK_BOT_TOKEN || process.env.SLACK_BOT_TOKEN || "";
+      const appToken = options?.SLACK_APP_TOKEN || process.env.SLACK_APP_TOKEN || "";
+      const enabled = process.env.SLACK_AGENT_ENABLED ?? options?.SLACK_AGENT_ENABLED ?? "true";
+      if (enabled === "false" || enabled === "0") {
+        log("DISABLED \u2014 SLACK_AGENT_ENABLED=false");
+        return { tool: { slack_status: slackStatusTool } };
       }
-    };
+      if (!botToken || !appToken) {
+        log("DISABLED \u2014 missing tokens");
+        return { tool: { slack_status: slackStatusTool } };
+      }
+      pluginClient = input.client;
+      defaultDirectory = expandTilde(options?.DEFAULT_DIRECTORY || process.env.SLACK_DEFAULT_DIRECTORY || input.directory);
+      attachBgTimeoutMs = resolveAttachTimeoutMs(options?.ATTACH_TIMEOUT_SEC);
+      log(`attach timeout set to ${attachBgTimeoutMs}ms`);
+      sessionsPath = join(input.directory, "slack-sessions.json");
+      loadSessions();
+      log(`sessions loaded: ${Object.keys(sessions).length} entries from ${sessionsPath}`);
+      const allowedUsersStr = options?.ALLOWED_USERS || process.env.SLACK_ALLOWED_USERS || "";
+      let emailsToResolve = [];
+      if (allowedUsersStr) {
+        const entries = allowedUsersStr.split(",").map((u) => u.trim()).filter(Boolean);
+        allowedUsers = new Set(entries.filter((e) => e.startsWith("U")));
+        emailsToResolve = entries.filter((e) => e.includes("@"));
+        log(`allowed users: ${[...allowedUsers].join(", ")}${emailsToResolve.length ? ` + ${emailsToResolve.length} emails to resolve` : ""}`);
+      }
+      const workerEnv = {
+        SLACK_BOT_TOKEN: botToken,
+        SLACK_APP_TOKEN: appToken
+      };
+      const caCerts = options?.NODE_EXTRA_CA_CERTS || process.env.NODE_EXTRA_CA_CERTS || "";
+      if (caCerts) workerEnv.NODE_EXTRA_CA_CERTS = caCerts;
+      if (emailsToResolve.length > 0) {
+        allowlistReady = false;
+      }
+      startWorker(workerEnv);
+      if (emailsToResolve.length > 0) {
+        sendIPC({ type: "resolve_emails", emails: emailsToResolve });
+      }
+      log("plugin initialized (hybrid sidecar + persistent sessions)");
+      return {
+        tool: { slack_status: slackStatusTool },
+        "permission.ask": async (input2, output) => {
+          const sessionEntry = Object.entries(sessions).find(
+            ([_, s]) => s.sessionId === input2.sessionID
+          );
+          if (!sessionEntry) return;
+          const [threadTs, session] = sessionEntry;
+          pendingPermissions.set(input2.id, {
+            permissionId: input2.id,
+            sessionId: input2.sessionID,
+            threadTs,
+            channel: session.channel,
+            createdAt: Date.now()
+          });
+          let msg = "\u26A0\uFE0F *\uAD8C\uD55C \uC694\uCCAD*\n";
+          msg += `\`${input2.title}\`
+`;
+          if (input2.pattern) {
+            const patterns = Array.isArray(input2.pattern) ? input2.pattern.join(", ") : input2.pattern;
+            msg += `\uD328\uD134: \`${patterns}\`
+`;
+          }
+          msg += "\n*1.* \uD5C8\uC6A9 (\uC774\uBC88\uB9CC)\n*2.* \uD56D\uC0C1 \uD5C8\uC6A9\n*3.* \uAC70\uBD80\n";
+          msg += "_1/y/yes, 2/always, 3/n/no \uB85C \uB2F5\uD574\uC8FC\uC138\uC694_";
+          slackSend(session.channel, msg, threadTs);
+          log(`permission.ask forwarded to slack: ${input2.id} (${input2.title})`);
+          output.status = "ask";
+        },
+        dispose: async () => {
+          stopWorker();
+          pluginClient = null;
+          initialized = false;
+          log("shutdown");
+        }
+      };
+    } catch (err) {
+      stopWorker();
+      pluginClient = null;
+      allowedUsers = null;
+      allowlistReady = true;
+      initialized = false;
+      log(`server() failed: ${err}`);
+      throw err;
+    }
   }
 };
 var plugin_default = pluginModule;
