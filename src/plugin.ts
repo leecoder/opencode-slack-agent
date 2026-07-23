@@ -82,7 +82,14 @@ function getSessionForThread(threadTs: string): string | null {
 }
 
 function saveSession(threadTs: string, sessionId: string, channel: string, directory?: string) {
-  sessions[threadTs] = { sessionId, channel, lastUsed: Date.now(), ...(directory ? { directory } : {}) };
+  const existing = sessions[threadTs];
+  sessions[threadTs] = {
+    ...existing,
+    sessionId,
+    channel,
+    lastUsed: Date.now(),
+    ...(directory ? { directory } : {}),
+  };
   saveSessions();
 }
 
@@ -238,7 +245,7 @@ async function handleQuestionReply(pending: PendingQuestion, text: string, chann
 async function handleMessage(channel: string, text: string, ts: string, messageTs?: string, isAllowed: boolean = true) {
   if (!pluginClient) return;
   const actualTs = messageTs || ts;
-  log(`handleMessage: ${text.slice(0, 50)}`);
+  log(`[HANDLE-MSG] channel=${channel} ts=${ts} messageTs=${messageTs} text="${text.slice(0, 60)}" isAllowed=${isAllowed}`);
 
   if (text.startsWith("!")) {
     if (!isAllowed) return;
@@ -288,10 +295,13 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
           });
           if (Array.isArray(preMessages) && preMessages.length > 0) {
             syncCursor = preMessages[preMessages.length - 1]?.id;
+            log(`pre-prompt cursor fallback: ${syncCursor} (${preMessages.length} messages)`);
           }
         } catch (preFetchErr: any) {
           log(`pre-prompt cursor fetch error: ${preFetchErr.message}`);
         }
+      } else {
+        log(`syncCursor from session: ${syncCursor}`);
       }
     }
 
@@ -319,7 +329,10 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
     const seenParts = new Set<string>();
     const backgroundTaskIDs = new Set<string>();
 
+    log(`[SSE-SUBSCRIBE] calling pluginClient.event.subscribe() for session=${sessionId} thread=${threadTs}`);
+    const subscribeStart = Date.now();
     const eventResult = await pluginClient.event.subscribe();
+    log(`[SSE-SUBSCRIBE] returned in ${Date.now() - subscribeStart}ms, hasStream=${!!eventResult?.stream}`);
     const stream = eventResult?.stream;
 
     if (!stream) {
@@ -486,14 +499,20 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
       clearInterval(delayCheck);
     }
 
+    log(`[SYNC-START] prevCursor=${syncCursor} sessionId=${sessionId} threadTs=${threadTs}`);
     try {
+      const prevCursor = syncCursor;
       syncCursor = await syncAssistantMessagesSinceCursor(sessionId, channel, threadTs, syncCursor);
+      log(`[SYNC-DONE] prev=${prevCursor} -> new=${syncCursor} thread=${threadTs}`);
       if (syncCursor && sessions[threadTs]) {
         sessions[threadTs].lastSyncedMessageId = syncCursor;
         saveSessions();
+        log(`[SYNC-SAVED] lastSyncedMessageId=${syncCursor} for thread=${threadTs}`);
+      } else {
+        log(`[SYNC-SKIP] syncCursor=${syncCursor} sessions[threadTs]=${!!sessions[threadTs]}`);
       }
     } catch (fetchErr: any) {
-      log(`final sync error: ${fetchErr.message}`);
+      log(`[SYNC-ERROR] ${fetchErr.message}\n${fetchErr.stack}`);
     }
 
     if (backgroundTaskIDs.size > 0) {
@@ -858,10 +877,15 @@ async function syncAssistantMessagesSinceCursor(
   });
   if (!Array.isArray(messages) || messages.length === 0) return cursorId;
 
+  const getMsgId = (m: any): string | undefined => m?.id || m?.info?.id;
+
+  log(`[SYNC-MESSAGES] total=${messages.length} cursorId=${cursorId} firstId=${getMsgId(messages[0])} lastId=${getMsgId(messages[messages.length - 1])}`);
+
   let startIndex = 0;
   if (cursorId) {
-    const cursorIdx = messages.findIndex((m: any) => m.id === cursorId);
+    const cursorIdx = messages.findIndex((m: any) => getMsgId(m) === cursorId);
     if (cursorIdx >= 0) startIndex = cursorIdx + 1;
+    else log(`[SYNC-WARN] cursorId ${cursorId} not found in ${messages.length} messages, replaying from start`);
   }
 
   const unsyncedAssistantMessages = messages
@@ -869,9 +893,11 @@ async function syncAssistantMessagesSinceCursor(
     .filter((m: any) => m.info?.role === "assistant")
     .sort((a: any, b: any) => (a.info?.time?.created || 0) - (b.info?.time?.created || 0));
 
+  log(`[SYNC-FILTER] startIndex=${startIndex} unsyncedAssistant=${unsyncedAssistantMessages.length}`);
+
   for (const msg of unsyncedAssistantMessages) {
     if (!Array.isArray(msg.parts)) {
-      log(`skip assistant message with non-array parts: ${msg.id || "unknown"}`);
+      log(`skip assistant message with non-array parts: ${getMsgId(msg) || "unknown"}`);
       continue;
     }
     const textParts = (msg.parts as any[])
@@ -882,7 +908,9 @@ async function syncAssistantMessagesSinceCursor(
   }
 
   const lastMsg = messages[messages.length - 1];
-  return lastMsg?.id || cursorId;
+  const lastId = getMsgId(lastMsg);
+  log(`[SYNC-RETURN] lastMsg keys=${lastMsg ? Object.keys(lastMsg).join(',') : 'null'} lastId=${lastId}`);
+  return lastId || cursorId;
 }
 
 async function handleAttachBackgroundTask(
@@ -1169,6 +1197,7 @@ async function handleCommand(channel: string, text: string, ts: string): Promise
 
 function attachWorkerHandlers(w: ChildProcess) {
   w.on("message", (msg: any) => {
+    log(`[IPC-RAW] type=${msg?.type} pid=${w.pid} connected=${w.connected} listenerCount=${w.listenerCount?.("message") ?? "?"}`);
     if (msg?.type === "slack_event") {
       log(`inbound received ${inboundMeta(msg)}`);
       if (!shouldProcessInboundEvent(msg)) {

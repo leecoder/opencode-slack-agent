@@ -12495,7 +12495,14 @@ function getSessionForThread(threadTs) {
   return null;
 }
 function saveSession(threadTs, sessionId, channel, directory) {
-  sessions[threadTs] = { sessionId, channel, lastUsed: Date.now(), ...directory ? { directory } : {} };
+  const existing = sessions[threadTs];
+  sessions[threadTs] = {
+    ...existing,
+    sessionId,
+    channel,
+    lastUsed: Date.now(),
+    ...directory ? { directory } : {}
+  };
   saveSessions();
 }
 function markdownToSlackMrkdwn(text) {
@@ -12633,7 +12640,7 @@ async function handleQuestionReply(pending, text, channel, threadTs) {
 async function handleMessage(channel, text, ts, messageTs, isAllowed = true) {
   if (!pluginClient) return;
   const actualTs = messageTs || ts;
-  log(`handleMessage: ${text.slice(0, 50)}`);
+  log(`[HANDLE-MSG] channel=${channel} ts=${ts} messageTs=${messageTs} text="${text.slice(0, 60)}" isAllowed=${isAllowed}`);
   if (text.startsWith("!")) {
     if (!isAllowed) return;
     const handled = await handleCommand(channel, text, ts);
@@ -12677,10 +12684,13 @@ async function handleMessage(channel, text, ts, messageTs, isAllowed = true) {
           });
           if (Array.isArray(preMessages) && preMessages.length > 0) {
             syncCursor = preMessages[preMessages.length - 1]?.id;
+            log(`pre-prompt cursor fallback: ${syncCursor} (${preMessages.length} messages)`);
           }
         } catch (preFetchErr) {
           log(`pre-prompt cursor fetch error: ${preFetchErr.message}`);
         }
+      } else {
+        log(`syncCursor from session: ${syncCursor}`);
       }
     }
     let promptText = text;
@@ -12703,7 +12713,10 @@ async function handleMessage(channel, text, ts, messageTs, isAllowed = true) {
     let questionPosted = false;
     const seenParts = /* @__PURE__ */ new Set();
     const backgroundTaskIDs = /* @__PURE__ */ new Set();
+    log(`[SSE-SUBSCRIBE] calling pluginClient.event.subscribe() for session=${sessionId} thread=${threadTs}`);
+    const subscribeStart = Date.now();
     const eventResult = await pluginClient.event.subscribe();
+    log(`[SSE-SUBSCRIBE] returned in ${Date.now() - subscribeStart}ms, hasStream=${!!eventResult?.stream}`);
     const stream = eventResult?.stream;
     if (!stream) {
       log("SSE stream not available, falling back to polling");
@@ -12861,14 +12874,21 @@ ${q.question}
       clearInterval(idleCheck);
       clearInterval(delayCheck);
     }
+    log(`[SYNC-START] prevCursor=${syncCursor} sessionId=${sessionId} threadTs=${threadTs}`);
     try {
+      const prevCursor = syncCursor;
       syncCursor = await syncAssistantMessagesSinceCursor(sessionId, channel, threadTs, syncCursor);
+      log(`[SYNC-DONE] prev=${prevCursor} -> new=${syncCursor} thread=${threadTs}`);
       if (syncCursor && sessions[threadTs]) {
         sessions[threadTs].lastSyncedMessageId = syncCursor;
         saveSessions();
+        log(`[SYNC-SAVED] lastSyncedMessageId=${syncCursor} for thread=${threadTs}`);
+      } else {
+        log(`[SYNC-SKIP] syncCursor=${syncCursor} sessions[threadTs]=${!!sessions[threadTs]}`);
       }
     } catch (fetchErr) {
-      log(`final sync error: ${fetchErr.message}`);
+      log(`[SYNC-ERROR] ${fetchErr.message}
+${fetchErr.stack}`);
     }
     if (backgroundTaskIDs.size > 0) {
       const autoTaskIds = [...backgroundTaskIDs].slice(0, AUTO_ATTACH_MAX_TASKS_PER_MESSAGE);
@@ -13175,22 +13195,28 @@ async function syncAssistantMessagesSinceCursor(sessionId, channel, threadTs, cu
     path: { id: sessionId }
   });
   if (!Array.isArray(messages) || messages.length === 0) return cursorId;
+  const getMsgId = (m) => m?.id || m?.info?.id;
+  log(`[SYNC-MESSAGES] total=${messages.length} cursorId=${cursorId} firstId=${getMsgId(messages[0])} lastId=${getMsgId(messages[messages.length - 1])}`);
   let startIndex = 0;
   if (cursorId) {
-    const cursorIdx = messages.findIndex((m) => m.id === cursorId);
+    const cursorIdx = messages.findIndex((m) => getMsgId(m) === cursorId);
     if (cursorIdx >= 0) startIndex = cursorIdx + 1;
+    else log(`[SYNC-WARN] cursorId ${cursorId} not found in ${messages.length} messages, replaying from start`);
   }
   const unsyncedAssistantMessages = messages.slice(startIndex).filter((m) => m.info?.role === "assistant").sort((a, b) => (a.info?.time?.created || 0) - (b.info?.time?.created || 0));
+  log(`[SYNC-FILTER] startIndex=${startIndex} unsyncedAssistant=${unsyncedAssistantMessages.length}`);
   for (const msg of unsyncedAssistantMessages) {
     if (!Array.isArray(msg.parts)) {
-      log(`skip assistant message with non-array parts: ${msg.id || "unknown"}`);
+      log(`skip assistant message with non-array parts: ${getMsgId(msg) || "unknown"}`);
       continue;
     }
     const textParts = msg.parts.filter((p) => p.type === "text" && p.text).map((p) => p.text).join("\n");
     if (textParts) sendLongText(channel, textParts, threadTs);
   }
   const lastMsg = messages[messages.length - 1];
-  return lastMsg?.id || cursorId;
+  const lastId = getMsgId(lastMsg);
+  log(`[SYNC-RETURN] lastMsg keys=${lastMsg ? Object.keys(lastMsg).join(",") : "null"} lastId=${lastId}`);
+  return lastId || cursorId;
 }
 async function handleAttachBackgroundTask(channel, bgTaskID, ts, options = {}) {
   const announceStart = options.announceStart !== false;
@@ -13451,6 +13477,7 @@ ${textParts}`, ts);
 }
 function attachWorkerHandlers(w) {
   w.on("message", (msg) => {
+    log(`[IPC-RAW] type=${msg?.type} pid=${w.pid} connected=${w.connected} listenerCount=${w.listenerCount?.("message") ?? "?"}`);
     if (msg?.type === "slack_event") {
       log(`inbound received ${inboundMeta(msg)}`);
       if (!shouldProcessInboundEvent(msg)) {
