@@ -1176,11 +1176,19 @@ function attachWorkerHandlers(w: ChildProcess) {
       }
       const isAllowed = !allowedUsers || !allowlistReady || allowedUsers.has(msg.user);
       const isThreadReply = msg.threadTs !== msg.messageTs;
+      const isMention = msg.eventSubtype === "app_mention";
 
       if (!isAllowed && !isThreadReply) {
         log(`inbound blocked_user ${inboundMeta(msg)} reason=new_thread_not_allowlisted`);
         return;
       }
+
+      // Thread reply: only respond if bot has an existing session for this thread or was explicitly mentioned
+      if (isThreadReply && !isMention && !getSessionForThread(msg.threadTs)) {
+        log(`inbound ignored ${inboundMeta(msg)} reason=thread_reply_no_session`);
+        return;
+      }
+
       log(`inbound dispatch_handleMessage ${inboundMeta(msg)}`);
       handleMessage(msg.channel, msg.text, msg.threadTs, msg.messageTs, isAllowed);
     } else if (msg?.type === "resolved_emails") {

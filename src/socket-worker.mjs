@@ -186,6 +186,7 @@ socketClient.on("slack_event", async ({ body, ack }) => {
         messageTs: ev.ts,
         eventId: typeof body?.event_id === "string" ? body.event_id : undefined,
         user: ev.user,
+        eventSubtype: ev.type,
       });
       log(`ingress forwarded_to_plugin key=${eventKey || "-"} ${formatInboundMeta(body, ev)} text_preview=${text.slice(0, 50)}`);
     }
