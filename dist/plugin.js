@@ -13490,8 +13490,13 @@ function attachWorkerHandlers(w) {
       }
       const isAllowed = !allowedUsers || !allowlistReady || allowedUsers.has(msg.user);
       const isThreadReply = msg.threadTs !== msg.messageTs;
+      const isMention = msg.eventSubtype === "app_mention";
       if (!isAllowed && !isThreadReply) {
         log(`inbound blocked_user ${inboundMeta(msg)} reason=new_thread_not_allowlisted`);
+        return;
+      }
+      if (isThreadReply && !isMention && !getSessionForThread(msg.threadTs)) {
+        log(`inbound ignored ${inboundMeta(msg)} reason=thread_reply_no_session`);
         return;
       }
       log(`inbound dispatch_handleMessage ${inboundMeta(msg)}`);
