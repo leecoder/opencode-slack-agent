@@ -1,0 +1,21 @@
+src/plugin.ts
+  s_fdf4dd12af5cb0::t_c7085d3af0cc4e 1328
+dist/plugin.js
+  s_fdf4dd12af5cb0::t_7e22929113631d 13594
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "7294246c2d7039858042e116be6496755b5b6b14",
+  "prompts": {},
+  "sessions": {
+    "s_fdf4dd12af5cb0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ses_076a2a666ffeI41E950x3dHN2s",
+        "model": "unknown"
+      },
+      "human_author": "leecoder <leecoder@aol.com>"
+    }
+  }
+}
