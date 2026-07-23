@@ -1,0 +1,36 @@
+tsup.config.ts
+  s_fdf4dd12af5cb0::t_f5f2910770cb6e 5
+dist/plugin.js
+  s_fdf4dd12af5cb0::t_d370bb0149e0dc 13493,13498-13499
+  s_3a600286441664::t_b31854bdccf850 13500-13501
+dist/socket-worker.js
+  s_fdf4dd12af5cb0::t_d370bb0149e0dc 1-220
+package-lock.json
+  s_3a600286441664::t_b41b6794fa14d7 3,9
+package.json
+  s_3a600286441664::t_25fa43b8f661d2 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "73b02ff6193d60a1b42df292cb698280f4d3ba7e",
+  "prompts": {},
+  "sessions": {
+    "s_3a600286441664": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_076a2a666ffeI41E950x3dHN2s",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "leecoder <leecoder@aol.com>"
+    },
+    "s_fdf4dd12af5cb0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ses_076a2a666ffeI41E950x3dHN2s",
+        "model": "unknown"
+      },
+      "human_author": "leecoder <leecoder@aol.com>"
+    }
+  }
+}
