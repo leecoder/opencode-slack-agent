@@ -1,0 +1,19 @@
+package.json
+  s_fdf4dd12af5cb0::t_5c873d8e1eb6ca 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "f472279cfbb2222306d44872c4fa181e5376f620",
+  "prompts": {},
+  "sessions": {
+    "s_fdf4dd12af5cb0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ses_076a2a666ffeI41E950x3dHN2s",
+        "model": "unknown"
+      },
+      "human_author": "leecoder <leecoder@aol.com>"
+    }
+  }
+}
