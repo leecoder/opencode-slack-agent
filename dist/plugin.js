@@ -12470,9 +12470,6 @@ function log(m) {
   } catch {
   }
 }
-function getMsgId(m) {
-  return m?.id || m?.info?.id;
-}
 function loadSessions() {
   try {
     if (existsSync(sessionsPath)) {
@@ -12498,16 +12495,7 @@ function getSessionForThread(threadTs) {
   return null;
 }
 function saveSession(threadTs, sessionId, channel, directory) {
-  const existing = sessions[threadTs];
-  const sessionChanged = existing && existing.sessionId !== sessionId;
-  sessions[threadTs] = {
-    ...existing,
-    sessionId,
-    channel,
-    lastUsed: Date.now(),
-    ...directory ? { directory } : {},
-    ...sessionChanged ? { lastSyncedMessageId: void 0 } : {}
-  };
+  sessions[threadTs] = { sessionId, channel, lastUsed: Date.now(), ...directory ? { directory } : {} };
   saveSessions();
 }
 function markdownToSlackMrkdwn(text) {
@@ -12645,7 +12633,7 @@ async function handleQuestionReply(pending, text, channel, threadTs) {
 async function handleMessage(channel, text, ts, messageTs, isAllowed = true) {
   if (!pluginClient) return;
   const actualTs = messageTs || ts;
-  log(`[HANDLE-MSG] channel=${channel} ts=${ts} messageTs=${messageTs} text="${text.slice(0, 60)}" isAllowed=${isAllowed}`);
+  log(`handleMessage: ${text.slice(0, 50)}`);
   if (text.startsWith("!")) {
     if (!isAllowed) return;
     const handled = await handleCommand(channel, text, ts);
@@ -12688,14 +12676,11 @@ async function handleMessage(channel, text, ts, messageTs, isAllowed = true) {
             path: { id: sessionId }
           });
           if (Array.isArray(preMessages) && preMessages.length > 0) {
-            syncCursor = getMsgId(preMessages[preMessages.length - 1]);
-            log(`pre-prompt cursor fallback: ${syncCursor} (${preMessages.length} messages)`);
+            syncCursor = preMessages[preMessages.length - 1]?.id;
           }
         } catch (preFetchErr) {
           log(`pre-prompt cursor fetch error: ${preFetchErr.message}`);
         }
-      } else {
-        log(`syncCursor from session: ${syncCursor}`);
       }
     }
     let promptText = text;
@@ -12718,10 +12703,7 @@ async function handleMessage(channel, text, ts, messageTs, isAllowed = true) {
     let questionPosted = false;
     const seenParts = /* @__PURE__ */ new Set();
     const backgroundTaskIDs = /* @__PURE__ */ new Set();
-    log(`[SSE-SUBSCRIBE] calling pluginClient.event.subscribe() for session=${sessionId} thread=${threadTs}`);
-    const subscribeStart = Date.now();
     const eventResult = await pluginClient.event.subscribe();
-    log(`[SSE-SUBSCRIBE] returned in ${Date.now() - subscribeStart}ms, hasStream=${!!eventResult?.stream}`);
     const stream = eventResult?.stream;
     if (!stream) {
       log("SSE stream not available, falling back to polling");
@@ -12879,21 +12861,14 @@ ${q.question}
       clearInterval(idleCheck);
       clearInterval(delayCheck);
     }
-    log(`[SYNC-START] prevCursor=${syncCursor} sessionId=${sessionId} threadTs=${threadTs}`);
     try {
-      const prevCursor = syncCursor;
       syncCursor = await syncAssistantMessagesSinceCursor(sessionId, channel, threadTs, syncCursor);
-      log(`[SYNC-DONE] prev=${prevCursor} -> new=${syncCursor} thread=${threadTs}`);
       if (syncCursor && sessions[threadTs]) {
         sessions[threadTs].lastSyncedMessageId = syncCursor;
         saveSessions();
-        log(`[SYNC-SAVED] lastSyncedMessageId=${syncCursor} for thread=${threadTs}`);
-      } else {
-        log(`[SYNC-SKIP] syncCursor=${syncCursor} sessions[threadTs]=${!!sessions[threadTs]}`);
       }
     } catch (fetchErr) {
-      log(`[SYNC-ERROR] ${fetchErr.message}
-${fetchErr.stack}`);
+      log(`final sync error: ${fetchErr.message}`);
     }
     if (backgroundTaskIDs.size > 0) {
       const autoTaskIds = [...backgroundTaskIDs].slice(0, AUTO_ATTACH_MAX_TASKS_PER_MESSAGE);
@@ -13200,27 +13175,22 @@ async function syncAssistantMessagesSinceCursor(sessionId, channel, threadTs, cu
     path: { id: sessionId }
   });
   if (!Array.isArray(messages) || messages.length === 0) return cursorId;
-  log(`[SYNC-MESSAGES] total=${messages.length} cursorId=${cursorId} firstId=${getMsgId(messages[0])} lastId=${getMsgId(messages[messages.length - 1])}`);
   let startIndex = 0;
   if (cursorId) {
-    const cursorIdx = messages.findIndex((m) => getMsgId(m) === cursorId);
+    const cursorIdx = messages.findIndex((m) => m.id === cursorId);
     if (cursorIdx >= 0) startIndex = cursorIdx + 1;
-    else log(`[SYNC-WARN] cursorId ${cursorId} not found in ${messages.length} messages, replaying from start`);
   }
   const unsyncedAssistantMessages = messages.slice(startIndex).filter((m) => m.info?.role === "assistant").sort((a, b) => (a.info?.time?.created || 0) - (b.info?.time?.created || 0));
-  log(`[SYNC-FILTER] startIndex=${startIndex} unsyncedAssistant=${unsyncedAssistantMessages.length}`);
   for (const msg of unsyncedAssistantMessages) {
     if (!Array.isArray(msg.parts)) {
-      log(`skip assistant message with non-array parts: ${getMsgId(msg) || "unknown"}`);
+      log(`skip assistant message with non-array parts: ${msg.id || "unknown"}`);
       continue;
     }
     const textParts = msg.parts.filter((p) => p.type === "text" && p.text).map((p) => p.text).join("\n");
     if (textParts) sendLongText(channel, textParts, threadTs);
   }
   const lastMsg = messages[messages.length - 1];
-  const lastId = getMsgId(lastMsg);
-  log(`[SYNC-RETURN] lastMsg keys=${lastMsg ? Object.keys(lastMsg).join(",") : "null"} lastId=${lastId}`);
-  return lastId || cursorId;
+  return lastMsg?.id || cursorId;
 }
 async function handleAttachBackgroundTask(channel, bgTaskID, ts, options = {}) {
   const announceStart = options.announceStart !== false;
@@ -13418,7 +13388,7 @@ async function handleCommand(channel, text, ts) {
       const cursor = session.lastSyncedMessageId;
       let startIndex = 0;
       if (cursor) {
-        const cursorIdx = messages.findIndex((m) => getMsgId(m) === cursor);
+        const cursorIdx = messages.findIndex((m) => m.id === cursor);
         if (cursorIdx >= 0) startIndex = cursorIdx + 1;
       }
       const unsyncedMessages = messages.slice(startIndex).filter(
@@ -13442,9 +13412,8 @@ ${textParts}`, ts);
         }
       }
       const lastMsg = messages[messages.length - 1];
-      const lastId = getMsgId(lastMsg);
-      if (lastId) {
-        sessions[ts].lastSyncedMessageId = lastId;
+      if (lastMsg?.id) {
+        sessions[ts].lastSyncedMessageId = lastMsg.id;
         saveSessions();
       }
       const syncedCount = unsyncedMessages.filter((m) => {
@@ -13482,7 +13451,6 @@ ${textParts}`, ts);
 }
 function attachWorkerHandlers(w) {
   w.on("message", (msg) => {
-    log(`[IPC-RAW] type=${msg?.type} pid=${w.pid} connected=${w.connected} listenerCount=${w.listenerCount?.("message") ?? "?"}`);
     if (msg?.type === "slack_event") {
       log(`inbound received ${inboundMeta(msg)}`);
       if (!shouldProcessInboundEvent(msg)) {
@@ -13490,17 +13458,9 @@ function attachWorkerHandlers(w) {
       }
       const isAllowed = !allowedUsers || !allowlistReady || allowedUsers.has(msg.user);
       const isThreadReply = msg.threadTs !== msg.messageTs;
-      const isMention = msg.eventSubtype === "app_mention";
       if (!isAllowed && !isThreadReply) {
         log(`inbound blocked_user ${inboundMeta(msg)} reason=new_thread_not_allowlisted`);
         return;
-      }
-      const isDM = typeof msg.channel === "string" && msg.channel.startsWith("D");
-      if (isThreadReply && !isMention && !getSessionForThread(msg.threadTs)) {
-        if (!isAllowed || !isDM) {
-          log(`inbound ignored ${inboundMeta(msg)} reason=thread_reply_no_session`);
-          return;
-        }
       }
       log(`inbound dispatch_handleMessage ${inboundMeta(msg)}`);
       handleMessage(msg.channel, msg.text, msg.threadTs, msg.messageTs, isAllowed);
@@ -13591,93 +13551,87 @@ var pluginModule = {
   server: async (input, options) => {
     log("server() called");
     if (initialized) return { tool: { slack_status: slackStatusTool } };
-    initialized = true;
-    try {
-      const botToken = options?.SLACK_BOT_TOKEN || process.env.SLACK_BOT_TOKEN || "";
-      const appToken = options?.SLACK_APP_TOKEN || process.env.SLACK_APP_TOKEN || "";
-      const enabled = process.env.SLACK_AGENT_ENABLED ?? options?.SLACK_AGENT_ENABLED ?? "true";
-      if (enabled === "false" || enabled === "0") {
-        log("DISABLED \u2014 SLACK_AGENT_ENABLED=false");
-        return { tool: { slack_status: slackStatusTool } };
-      }
-      if (!botToken || !appToken) {
-        log("DISABLED \u2014 missing tokens");
-        return { tool: { slack_status: slackStatusTool } };
-      }
-      pluginClient = input.client;
-      defaultDirectory = expandTilde(options?.DEFAULT_DIRECTORY || process.env.SLACK_DEFAULT_DIRECTORY || input.directory);
-      attachBgTimeoutMs = resolveAttachTimeoutMs(options?.ATTACH_TIMEOUT_SEC);
-      log(`attach timeout set to ${attachBgTimeoutMs}ms`);
-      sessionsPath = join(input.directory, "slack-sessions.json");
-      loadSessions();
-      log(`sessions loaded: ${Object.keys(sessions).length} entries from ${sessionsPath}`);
-      const allowedUsersStr = options?.ALLOWED_USERS || process.env.SLACK_ALLOWED_USERS || "";
-      let emailsToResolve = [];
-      if (allowedUsersStr) {
-        const entries = allowedUsersStr.split(",").map((u) => u.trim()).filter(Boolean);
-        allowedUsers = new Set(entries.filter((e) => e.startsWith("U")));
-        emailsToResolve = entries.filter((e) => e.includes("@"));
-        log(`allowed users: ${[...allowedUsers].join(", ")}${emailsToResolve.length ? ` + ${emailsToResolve.length} emails to resolve` : ""}`);
-      }
-      const workerEnv = {
-        SLACK_BOT_TOKEN: botToken,
-        SLACK_APP_TOKEN: appToken
-      };
-      const caCerts = options?.NODE_EXTRA_CA_CERTS || process.env.NODE_EXTRA_CA_CERTS || "";
-      if (caCerts) workerEnv.NODE_EXTRA_CA_CERTS = caCerts;
-      if (emailsToResolve.length > 0) {
-        allowlistReady = false;
-      }
-      startWorker(workerEnv);
-      if (emailsToResolve.length > 0) {
-        sendIPC({ type: "resolve_emails", emails: emailsToResolve });
-      }
-      log("plugin initialized (hybrid sidecar + persistent sessions)");
-      return {
-        tool: { slack_status: slackStatusTool },
-        "permission.ask": async (input2, output) => {
-          const sessionEntry = Object.entries(sessions).find(
-            ([_, s]) => s.sessionId === input2.sessionID
-          );
-          if (!sessionEntry) return;
-          const [threadTs, session] = sessionEntry;
-          pendingPermissions.set(input2.id, {
-            permissionId: input2.id,
-            sessionId: input2.sessionID,
-            threadTs,
-            channel: session.channel,
-            createdAt: Date.now()
-          });
-          let msg = "\u26A0\uFE0F *\uAD8C\uD55C \uC694\uCCAD*\n";
-          msg += `\`${input2.title}\`
-`;
-          if (input2.pattern) {
-            const patterns = Array.isArray(input2.pattern) ? input2.pattern.join(", ") : input2.pattern;
-            msg += `\uD328\uD134: \`${patterns}\`
-`;
-          }
-          msg += "\n*1.* \uD5C8\uC6A9 (\uC774\uBC88\uB9CC)\n*2.* \uD56D\uC0C1 \uD5C8\uC6A9\n*3.* \uAC70\uBD80\n";
-          msg += "_1/y/yes, 2/always, 3/n/no \uB85C \uB2F5\uD574\uC8FC\uC138\uC694_";
-          slackSend(session.channel, msg, threadTs);
-          log(`permission.ask forwarded to slack: ${input2.id} (${input2.title})`);
-          output.status = "ask";
-        },
-        dispose: async () => {
-          stopWorker();
-          pluginClient = null;
-          initialized = false;
-          log("shutdown");
-        }
-      };
-    } catch (err) {
-      stopWorker();
-      pluginClient = null;
-      allowedUsers = null;
-      allowlistReady = true;
-      initialized = false;
-      log(`server() failed: ${err}`);
-      throw err;
+    const botToken = options?.SLACK_BOT_TOKEN || process.env.SLACK_BOT_TOKEN || "";
+    const appToken = options?.SLACK_APP_TOKEN || process.env.SLACK_APP_TOKEN || "";
+    const enabled = process.env.SLACK_AGENT_ENABLED ?? options?.SLACK_AGENT_ENABLED ?? "true";
+    if (enabled === "false" || enabled === "0") {
+      log("DISABLED \u2014 SLACK_AGENT_ENABLED=false");
+      initialized = true;
+      return { tool: { slack_status: slackStatusTool } };
     }
+    if (!botToken || !appToken) {
+      log("DISABLED \u2014 missing tokens");
+      initialized = true;
+      return { tool: { slack_status: slackStatusTool } };
+    }
+    pluginClient = input.client;
+    defaultDirectory = expandTilde(options?.DEFAULT_DIRECTORY || process.env.SLACK_DEFAULT_DIRECTORY || input.directory);
+    agentOverride = options?.DEFAULT_AGENT || process.env.SLACK_DEFAULT_AGENT || null;
+    if (agentOverride) log(`default agent: ${agentOverride}`);
+    attachBgTimeoutMs = resolveAttachTimeoutMs(options?.ATTACH_TIMEOUT_SEC);
+    log(`attach timeout set to ${attachBgTimeoutMs}ms`);
+    sessionsPath = join(input.directory, "slack-sessions.json");
+    loadSessions();
+    log(`sessions loaded: ${Object.keys(sessions).length} entries from ${sessionsPath}`);
+    const allowedUsersStr = options?.ALLOWED_USERS || process.env.SLACK_ALLOWED_USERS || "";
+    let emailsToResolve = [];
+    if (allowedUsersStr) {
+      const entries = allowedUsersStr.split(",").map((u) => u.trim()).filter(Boolean);
+      allowedUsers = new Set(entries.filter((e) => e.startsWith("U")));
+      emailsToResolve = entries.filter((e) => e.includes("@"));
+      log(`allowed users: ${[...allowedUsers].join(", ")}${emailsToResolve.length ? ` + ${emailsToResolve.length} emails to resolve` : ""}`);
+    }
+    const workerEnv = {
+      SLACK_BOT_TOKEN: botToken,
+      SLACK_APP_TOKEN: appToken
+    };
+    const caCerts = options?.NODE_EXTRA_CA_CERTS || process.env.NODE_EXTRA_CA_CERTS || "";
+    if (caCerts) workerEnv.NODE_EXTRA_CA_CERTS = caCerts;
+    if (emailsToResolve.length > 0) {
+      allowlistReady = false;
+    }
+    startWorker(workerEnv);
+    if (emailsToResolve.length > 0) {
+      sendIPC({ type: "resolve_emails", emails: emailsToResolve });
+    }
+    initialized = true;
+    log("plugin initialized (hybrid sidecar + persistent sessions)");
+    return {
+      tool: { slack_status: slackStatusTool },
+      "permission.ask": async (input2, output) => {
+        const sessionEntry = Object.entries(sessions).find(
+          ([_, s]) => s.sessionId === input2.sessionID
+        );
+        if (!sessionEntry) return;
+        const [threadTs, session] = sessionEntry;
+        pendingPermissions.set(input2.id, {
+          permissionId: input2.id,
+          sessionId: input2.sessionID,
+          threadTs,
+          channel: session.channel,
+          createdAt: Date.now()
+        });
+        let msg = "\u26A0\uFE0F *\uAD8C\uD55C \uC694\uCCAD*\n";
+        msg += `\`${input2.title}\`
+`;
+        if (input2.pattern) {
+          const patterns = Array.isArray(input2.pattern) ? input2.pattern.join(", ") : input2.pattern;
+          msg += `\uD328\uD134: \`${patterns}\`
+`;
+        }
+        msg += "\n*1.* \uD5C8\uC6A9 (\uC774\uBC88\uB9CC)\n*2.* \uD56D\uC0C1 \uD5C8\uC6A9\n*3.* \uAC70\uBD80\n";
+        msg += "_1/y/yes, 2/always, 3/n/no \uB85C \uB2F5\uD574\uC8FC\uC138\uC694_";
+        slackSend(session.channel, msg, threadTs);
+        log(`permission.ask forwarded to slack: ${input2.id} (${input2.title})`);
+        output.status = "ask";
+      },
+      dispose: async () => {
+        stopWorker();
+        pluginClient = null;
+        initialized = false;
+        log("shutdown");
+      }
+    };
   }
 };
 var plugin_default = pluginModule;

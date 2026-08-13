@@ -1346,6 +1346,8 @@ const pluginModule: PluginModule = {
 
     pluginClient = input.client;
     defaultDirectory = expandTilde((options?.DEFAULT_DIRECTORY as string) || process.env.SLACK_DEFAULT_DIRECTORY || input.directory);
+    agentOverride = (options?.DEFAULT_AGENT as string) || process.env.SLACK_DEFAULT_AGENT || null;
+    if (agentOverride) log(`default agent: ${agentOverride}`);
     attachBgTimeoutMs = resolveAttachTimeoutMs(options?.ATTACH_TIMEOUT_SEC);
     log(`attach timeout set to ${attachBgTimeoutMs}ms`);
     sessionsPath = join(input.directory, "slack-sessions.json");
