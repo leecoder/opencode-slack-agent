@@ -810,8 +810,8 @@ function numKeys(data) {
   return keyCount;
 }
 var getParsedType = (data) => {
-  const t = typeof data;
-  switch (t) {
+  const t2 = typeof data;
+  switch (t2) {
     case "undefined":
       return "undefined";
     case "string":
@@ -850,7 +850,7 @@ var getParsedType = (data) => {
       }
       return "object";
     default:
-      throw new Error(`Unknown data type: ${t}`);
+      throw new Error(`Unknown data type: ${t2}`);
   }
 };
 var propertyKeyTypes = /* @__PURE__ */ new Set(["string", "number", "symbol"]);
@@ -2844,11 +2844,11 @@ function handleCatchall(proms, input, payload, ctx, def, inst) {
   const unrecognized = [];
   const keySet = def.keySet;
   const _catchall = def.catchall._zod;
-  const t = _catchall.def.type;
+  const t2 = _catchall.def.type;
   for (const key of Object.keys(input)) {
     if (keySet.has(key))
       continue;
-    if (t === "never") {
+    if (t2 === "never") {
       unrecognized.push(key);
       continue;
     }
@@ -4060,8 +4060,8 @@ var error = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "number";
       }
@@ -4077,7 +4077,7 @@ var error = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "\u0645\u062F\u062E\u0644",
@@ -4177,8 +4177,8 @@ var error2 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "number";
       }
@@ -4194,7 +4194,7 @@ var error2 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "input",
@@ -4336,8 +4336,8 @@ var error3 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "\u043B\u0456\u043A";
       }
@@ -4353,7 +4353,7 @@ var error3 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "\u0443\u0432\u043E\u0434",
@@ -4458,8 +4458,8 @@ var error4 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "number";
       }
@@ -4475,7 +4475,7 @@ var error4 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "entrada",
@@ -4578,8 +4578,8 @@ var error5 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "\u010D\xEDslo";
       }
@@ -4613,7 +4613,7 @@ var error5 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "regul\xE1rn\xED v\xFDraz",
@@ -4726,8 +4726,8 @@ var error6 = () => {
     return TypeNames[type] ?? type;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "tal";
       }
@@ -4744,7 +4744,7 @@ var error6 = () => {
         return "objekt";
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "input",
@@ -4846,8 +4846,8 @@ var error7 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "Zahl";
       }
@@ -4863,7 +4863,7 @@ var error7 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "Eingabe",
@@ -4953,8 +4953,8 @@ function de_default() {
 
 // node_modules/zod/v4/locales/en.js
 var parsedType = (data) => {
-  const t = typeof data;
-  switch (t) {
+  const t2 = typeof data;
+  switch (t2) {
     case "number": {
       return Number.isNaN(data) ? "NaN" : "number";
     }
@@ -4970,7 +4970,7 @@ var parsedType = (data) => {
       }
     }
   }
-  return t;
+  return t2;
 };
 var error8 = () => {
   const Sizable = {
@@ -5071,8 +5071,8 @@ function en_default() {
 
 // node_modules/zod/v4/locales/eo.js
 var parsedType2 = (data) => {
-  const t = typeof data;
-  switch (t) {
+  const t2 = typeof data;
+  switch (t2) {
     case "number": {
       return Number.isNaN(data) ? "NaN" : "nombro";
     }
@@ -5088,7 +5088,7 @@ var parsedType2 = (data) => {
       }
     }
   }
-  return t;
+  return t2;
 };
 var error9 = () => {
   const Sizable = {
@@ -5227,8 +5227,8 @@ var error10 = () => {
     return TypeNames[type] ?? type;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "number";
       }
@@ -5245,7 +5245,7 @@ var error10 = () => {
         return "object";
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "entrada",
@@ -5348,8 +5348,8 @@ var error11 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "\u0639\u062F\u062F";
       }
@@ -5365,7 +5365,7 @@ var error11 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "\u0648\u0631\u0648\u062F\u06CC",
@@ -5475,8 +5475,8 @@ var error12 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "number";
       }
@@ -5492,7 +5492,7 @@ var error12 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "s\xE4\xE4nn\xF6llinen lauseke",
@@ -5594,8 +5594,8 @@ var error13 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "nombre";
       }
@@ -5611,7 +5611,7 @@ var error13 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "entr\xE9e",
@@ -5711,8 +5711,8 @@ var error14 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "number";
       }
@@ -5728,7 +5728,7 @@ var error14 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "entr\xE9e",
@@ -5829,8 +5829,8 @@ var error15 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "number";
       }
@@ -5846,7 +5846,7 @@ var error15 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "\u05E7\u05DC\u05D8",
@@ -5947,8 +5947,8 @@ var error16 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "sz\xE1m";
       }
@@ -5964,7 +5964,7 @@ var error16 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "bemenet",
@@ -6065,8 +6065,8 @@ var error17 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "number";
       }
@@ -6082,7 +6082,7 @@ var error17 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "input",
@@ -6172,8 +6172,8 @@ function id_default() {
 
 // node_modules/zod/v4/locales/is.js
 var parsedType3 = (data) => {
-  const t = typeof data;
-  switch (t) {
+  const t2 = typeof data;
+  switch (t2) {
     case "number": {
       return Number.isNaN(data) ? "NaN" : "n\xFAmer";
     }
@@ -6189,7 +6189,7 @@ var parsedType3 = (data) => {
       }
     }
   }
-  return t;
+  return t2;
 };
 var error18 = () => {
   const Sizable = {
@@ -6300,8 +6300,8 @@ var error19 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "numero";
       }
@@ -6317,7 +6317,7 @@ var error19 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "input",
@@ -6418,8 +6418,8 @@ var error20 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "\u6570\u5024";
       }
@@ -6435,7 +6435,7 @@ var error20 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "\u5165\u529B\u5024",
@@ -6524,8 +6524,8 @@ function ja_default() {
 
 // node_modules/zod/v4/locales/ka.js
 var parsedType4 = (data) => {
-  const t = typeof data;
-  switch (t) {
+  const t2 = typeof data;
+  switch (t2) {
     case "number": {
       return Number.isNaN(data) ? "NaN" : "\u10E0\u10D8\u10EA\u10EE\u10D5\u10D8";
     }
@@ -6549,7 +6549,7 @@ var parsedType4 = (data) => {
     symbol: "symbol",
     function: "\u10E4\u10E3\u10DC\u10E5\u10EA\u10D8\u10D0"
   };
-  return typeMap[t] ?? t;
+  return typeMap[t2] ?? t2;
 };
 var error21 = () => {
   const Sizable = {
@@ -6660,8 +6660,8 @@ var error22 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "\u1798\u17B7\u1793\u1798\u17C2\u1793\u1787\u17B6\u179B\u17C1\u1781 (NaN)" : "\u179B\u17C1\u1781";
       }
@@ -6677,7 +6677,7 @@ var error22 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "\u1791\u17B7\u1793\u17D2\u1793\u1793\u17D0\u1799\u1794\u1789\u17D2\u1785\u17BC\u179B",
@@ -6783,8 +6783,8 @@ var error23 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "number";
       }
@@ -6800,7 +6800,7 @@ var error23 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "\uC785\uB825",
@@ -6895,11 +6895,11 @@ function ko_default() {
 
 // node_modules/zod/v4/locales/lt.js
 var parsedType5 = (data) => {
-  const t = typeof data;
-  return parsedTypeFromType(t, data);
+  const t2 = typeof data;
+  return parsedTypeFromType(t2, data);
 };
-var parsedTypeFromType = (t, data = void 0) => {
-  switch (t) {
+var parsedTypeFromType = (t2, data = void 0) => {
+  switch (t2) {
     case "number": {
       return Number.isNaN(data) ? "NaN" : "skai\u010Dius";
     }
@@ -6939,7 +6939,7 @@ var parsedTypeFromType = (t, data = void 0) => {
       return "nulin\u0117 reik\u0161m\u0117";
     }
   }
-  return t;
+  return t2;
 };
 var capitalizeFirstCharacter = (text) => {
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -7136,8 +7136,8 @@ var error25 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "\u0431\u0440\u043E\u0458";
       }
@@ -7153,7 +7153,7 @@ var error25 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "\u0432\u043D\u0435\u0441",
@@ -7255,8 +7255,8 @@ var error26 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "nombor";
       }
@@ -7272,7 +7272,7 @@ var error26 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "input",
@@ -7372,8 +7372,8 @@ var error27 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "getal";
       }
@@ -7389,7 +7389,7 @@ var error27 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "invoer",
@@ -7490,8 +7490,8 @@ var error28 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "tall";
       }
@@ -7507,7 +7507,7 @@ var error28 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "input",
@@ -7607,8 +7607,8 @@ var error29 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "numara";
       }
@@ -7624,7 +7624,7 @@ var error29 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "giren",
@@ -7725,8 +7725,8 @@ var error30 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "\u0639\u062F\u062F";
       }
@@ -7742,7 +7742,7 @@ var error30 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "\u0648\u0631\u0648\u062F\u064A",
@@ -7848,8 +7848,8 @@ var error31 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "liczba";
       }
@@ -7865,7 +7865,7 @@ var error31 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "wyra\u017Cenie",
@@ -7966,8 +7966,8 @@ var error32 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "n\xFAmero";
       }
@@ -7983,7 +7983,7 @@ var error32 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "padr\xE3o",
@@ -8126,8 +8126,8 @@ var error33 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "\u0447\u0438\u0441\u043B\u043E";
       }
@@ -8143,7 +8143,7 @@ var error33 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "\u0432\u0432\u043E\u0434",
@@ -8248,8 +8248,8 @@ var error34 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "\u0161tevilo";
       }
@@ -8265,7 +8265,7 @@ var error34 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "vnos",
@@ -8366,8 +8366,8 @@ var error35 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "antal";
       }
@@ -8383,7 +8383,7 @@ var error35 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "regulj\xE4rt uttryck",
@@ -8485,8 +8485,8 @@ var error36 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "\u0B8E\u0BA3\u0BCD \u0B85\u0BB2\u0BCD\u0BB2\u0BBE\u0BA4\u0BA4\u0BC1" : "\u0B8E\u0BA3\u0BCD";
       }
@@ -8502,7 +8502,7 @@ var error36 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "\u0B89\u0BB3\u0BCD\u0BB3\u0BC0\u0B9F\u0BC1",
@@ -8603,8 +8603,8 @@ var error37 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "\u0E44\u0E21\u0E48\u0E43\u0E0A\u0E48\u0E15\u0E31\u0E27\u0E40\u0E25\u0E02 (NaN)" : "\u0E15\u0E31\u0E27\u0E40\u0E25\u0E02";
       }
@@ -8620,7 +8620,7 @@ var error37 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25\u0E17\u0E35\u0E48\u0E1B\u0E49\u0E2D\u0E19",
@@ -8711,8 +8711,8 @@ function th_default() {
 
 // node_modules/zod/v4/locales/tr.js
 var parsedType6 = (data) => {
-  const t = typeof data;
-  switch (t) {
+  const t2 = typeof data;
+  switch (t2) {
     case "number": {
       return Number.isNaN(data) ? "NaN" : "number";
     }
@@ -8728,7 +8728,7 @@ var parsedType6 = (data) => {
       }
     }
   }
-  return t;
+  return t2;
 };
 var error38 = () => {
   const Sizable = {
@@ -8837,8 +8837,8 @@ var error39 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "\u0447\u0438\u0441\u043B\u043E";
       }
@@ -8854,7 +8854,7 @@ var error39 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "\u0432\u0445\u0456\u0434\u043D\u0456 \u0434\u0430\u043D\u0456",
@@ -8960,8 +8960,8 @@ var error40 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "\u0646\u0645\u0628\u0631";
       }
@@ -8977,7 +8977,7 @@ var error40 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "\u0627\u0646 \u067E\u0679",
@@ -9078,8 +9078,8 @@ var error41 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "s\u1ED1";
       }
@@ -9095,7 +9095,7 @@ var error41 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "\u0111\u1EA7u v\xE0o",
@@ -9195,8 +9195,8 @@ var error42 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "\u975E\u6570\u5B57(NaN)" : "\u6570\u5B57";
       }
@@ -9212,7 +9212,7 @@ var error42 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "\u8F93\u5165",
@@ -9312,8 +9312,8 @@ var error43 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "number";
       }
@@ -9329,7 +9329,7 @@ var error43 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "\u8F38\u5165",
@@ -9430,8 +9430,8 @@ var error44 = () => {
     return Sizable[origin] ?? null;
   }
   const parsedType7 = (data) => {
-    const t = typeof data;
-    switch (t) {
+    const t2 = typeof data;
+    switch (t2) {
       case "number": {
         return Number.isNaN(data) ? "NaN" : "n\u1ECD\u0301mb\xE0";
       }
@@ -9447,7 +9447,7 @@ var error44 = () => {
         }
       }
     }
-    return t;
+    return t2;
   };
   const Nouns = {
     regex: "\u1EB9\u0300r\u1ECD \xECb\xE1w\u1ECDl\xE9",
@@ -12454,6 +12454,84 @@ var defaultDirectory = "";
 var allowedUsers = null;
 var allowlistReady = true;
 var attachBgTimeoutMs = DEFAULT_ATTACH_TIMEOUT_SEC * 1e3;
+var language = "ko";
+var STR = {
+  invalidReply: { ko: "_\uC798\uBABB\uB41C \uC751\uB2F5. 1/y/yes, 2/always, 3/n/no \uB85C \uB2F5\uD574\uC8FC\uC138\uC694._", en: "_Invalid reply. Answer with 1/y/yes, 2/always, 3/n/no._" },
+  permAllow: { ko: "\uD5C8\uC6A9", en: "Allowed" },
+  permDeny: { ko: "\uAC70\uBD80", en: "Denied" },
+  permDone: { ko: "_\uAD8C\uD55C {label}_", en: "_Permission {label}_" },
+  permReplyFailed: { ko: "_\uAD8C\uD55C \uC751\uB2F5 \uC2E4\uD328: {msg}_", en: "_Permission reply failed: {msg}_" },
+  answerRelayFailed: { ko: "_\uC751\uB2F5 \uC804\uB2EC \uC2E4\uD328: {msg}_", en: "_Failed to relay answer: {msg}_" },
+  sessionCreateFailed: { ko: "\u274C \uC138\uC158 \uC0DD\uC131 \uC2E4\uD328", en: "\u274C Failed to create session" },
+  streamConnectFailed: { ko: "\u274C \uC774\uBCA4\uD2B8 \uC2A4\uD2B8\uB9BC \uC5F0\uACB0 \uC2E4\uD328", en: "\u274C Failed to connect event stream" },
+  stalled: { ko: "\u23F3 \uC751\uB2F5\uC774 \uC9C0\uC5F0\uB418\uACE0 \uC788\uC5B4\uC694 ({sec}\uCD08 \uACBD\uACFC). \uACC4\uC18D \uCC98\uB9AC \uC911\uC785\uB2C8\uB2E4.", en: "\u23F3 Response is delayed ({sec}s elapsed). Still working." },
+  questionHeader: { ko: "\u2753 *\uC9C8\uBB38*\n", en: "\u2753 *Question*\n" },
+  questionHint: { ko: "\n_\uBC88\uD638 \uB610\uB294 \uD14D\uC2A4\uD2B8\uB85C \uB2F5\uD574\uC8FC\uC138\uC694_", en: "\n_Reply with a number or text_" },
+  bgDetected: { ko: "\u{1F9F5} bg \uC791\uC5C5 \uAC10\uC9C0: `{id}` (\uC644\uB8CC \uC2DC \uACB0\uACFC\uB97C \uC790\uB3D9 \uD655\uC778\uD569\uB2C8\uB2E4)", en: "\u{1F9F5} Background task detected: `{id}` (will auto-check on completion)" },
+  bgTooMany: { ko: "\u2139\uFE0F \uAC10\uC9C0\uB41C bg \uC791\uC5C5\uC774 \uB9CE\uC544 \uC0C1\uC704 {n}\uAC1C\uB9CC \uC790\uB3D9 \uD655\uC778\uD569\uB2C8\uB2E4. ({skipped}\uAC1C\uB294 \uC218\uB3D9 attach \uAD8C\uC7A5)", en: "\u2139\uFE0F Many background tasks detected, auto-checking top {n}. ({skipped} need manual attach)" },
+  bgBudgetExceeded: { ko: "\u23F1\uFE0F \uC790\uB3D9 bg \uD655\uC778 \uC608\uC0B0(2\uBD84)\uC744 \uCD08\uACFC\uD558\uC5EC \uCD94\uAC00 \uC791\uC5C5\uC740 \uAC74\uB108\uB701\uB2C8\uB2E4. \uD544\uC694 \uC2DC `!attach bg_xxx`\uB85C \uD655\uC778\uD558\uC138\uC694.", en: "\u23F1\uFE0F Auto bg-check budget (2 min) exceeded, skipping the rest. Use `!attach bg_xxx` if needed." },
+  errPrefix: { ko: "\u274C \uC624\uB958: {msg}", en: "\u274C Error: {msg}" },
+  minLabel: { ko: "{n}\uBD84", en: "{n}m" },
+  secLabel: { ko: "{n}\uCD08", en: "{n}s" },
+  bgAttach: { ko: "\u{1F517} bg \uC791\uC5C5 attach: `{id}`\n\uC644\uB8CC\uAE4C\uC9C0 \uC0C1\uD0DC\uB97C \uD655\uC778\uD569\uB2C8\uB2E4.", en: "\u{1F517} Background task attached: `{id}`\nWatching until completion." },
+  bgApiMissing: { ko: "\u274C \uD604\uC7AC OpenCode \uC11C\uBC84\uC5D0\uC11C background output API\uB97C \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.", en: "\u274C Background output API not found on the current OpenCode server." },
+  bgNoAccess: { ko: "\u274C bg \uC791\uC5C5 \uC811\uADFC \uAD8C\uD55C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4: `{id}`", en: "\u274C No access to background task: `{id}`" },
+  bgNotFound: { ko: "\u274C bg \uC791\uC5C5\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4: `{id}`", en: "\u274C Background task not found: `{id}`" },
+  bgLookupError: { ko: "\u274C bg \uC870\uD68C \uC624\uB958: {msg}", en: "\u274C Background task lookup error: {msg}" },
+  bgDone: { ko: "\u2705 bg \uC791\uC5C5 \uC644\uB8CC: `{id}`", en: "\u2705 Background task done: `{id}`" },
+  bgFailed: { ko: "\u274C bg \uC791\uC5C5 \uC2E4\uD328: `{id}`", en: "\u274C Background task failed: `{id}`" },
+  bgCancelled: { ko: "\u{1F6AB} bg \uC791\uC5C5\uC774 \uCDE8\uC18C\uB418\uC5C8\uC2B5\uB2C8\uB2E4: `{id}`", en: "\u{1F6AB} Background task cancelled: `{id}`" },
+  bgTimeout: { ko: "\u23F1\uFE0F bg \uC791\uC5C5 \uB300\uAE30 \uC2DC\uAC04 \uCD08\uACFC ({t}): `{id}`\n\uB2E4\uC2DC `!attach {id}`\uB85C \uC774\uC5B4\uC11C \uD655\uC778\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.", en: "\u23F1\uFE0F Background task wait timed out ({t}): `{id}`\nResume with `!attach {id}`." },
+  currentModel: { ko: "*\uD604\uC7AC \uBAA8\uB378:* `{v}`", en: "*Current model:* `{v}`" },
+  available: { ko: "*\uC0AC\uC6A9 \uAC00\uB2A5:*", en: "*Available:*" },
+  modelListFailed: { ko: "_(\uBAA8\uB378 \uBAA9\uB85D\uC744 \uAC00\uC838\uC62C \uC218 \uC5C6\uC2B5\uB2C8\uB2E4)_", en: "_(could not fetch model list)_" },
+  modelRestored: { ko: "\u2705 \uAE30\uBCF8 \uBAA8\uB378\uB85C \uBCF5\uC6D0", en: "\u2705 Restored default model" },
+  modelChanged: { ko: "\u2705 \uBAA8\uB378 \uBCC0\uACBD: `{v}`", en: "\u2705 Model changed: `{v}`" },
+  modelUsage: { ko: "\u274C \uD615\uC2DD: `!model provider/model` (\uC608: `!model kiro/claude-sonnet-4-6`)", en: "\u274C Usage: `!model provider/model` (e.g. `!model kiro/claude-sonnet-4-6`)" },
+  sessionReset: { ko: "\u2705 \uC138\uC158 \uB9AC\uC14B\uB428. \uB2E4\uC74C \uBA54\uC2DC\uC9C0\uBD80\uD130 \uC0C8 \uC138\uC158.", en: "\u2705 Session reset. A new session starts with your next message." },
+  currentAgent: { ko: "*\uD604\uC7AC \uC5D0\uC774\uC804\uD2B8:* `{v}`", en: "*Current agent:* `{v}`" },
+  agentRestored: { ko: "\u2705 \uAE30\uBCF8 \uC5D0\uC774\uC804\uD2B8\uB85C \uBCF5\uC6D0", en: "\u2705 Restored default agent" },
+  agentChanged: { ko: "\u2705 \uC5D0\uC774\uC804\uD2B8 \uBCC0\uACBD: `{v}`", en: "\u2705 Agent changed: `{v}`" },
+  defaultLabel: { ko: "(\uAE30\uBCF8)", en: "(default)" },
+  currentDir: { ko: "*\uD604\uC7AC \uC6CC\uD06C\uC2A4\uD398\uC774\uC2A4:* `{v}`", en: "*Current workspace:* `{v}`" },
+  dirChanged: { ko: "\u2705 \uC6CC\uD06C\uC2A4\uD398\uC774\uC2A4 \uBCC0\uACBD: `{v}`\n\uB2E4\uC74C \uBA54\uC2DC\uC9C0\uBD80\uD130 \uC774 \uB514\uB809\uD1A0\uB9AC\uC5D0\uC11C \uC138\uC158 \uC0DD\uC131.", en: "\u2705 Workspace changed: `{v}`\nNew sessions use this directory from your next message." },
+  noneLabel: { ko: "(\uC5C6\uC74C)", en: "(none)" },
+  currentSession: { ko: "*\uD604\uC7AC \uC138\uC158:* `{v}`", en: "*Current session:* `{v}`" },
+  attachBgUsage: { ko: "\u274C \uD615\uC2DD: `!attach bg_xxx` (\uC601\uBB38/\uC22B\uC790/`_`/`-`\uB9CC \uD5C8\uC6A9)", en: "\u274C Usage: `!attach bg_xxx` (letters/numbers/`_`/`-` only)" },
+  attachSesUsage: { ko: "\u274C \uD615\uC2DD: `!attach ses_xxx` \uB610\uB294 OpenCode URL \uBD99\uC5EC\uB123\uAE30", en: "\u274C Usage: `!attach ses_xxx` or paste an OpenCode URL" },
+  sessionAttached: { ko: "\u2705 \uC138\uC158 \uC5F0\uACB0: `{v}`\n\uC774 \uC2A4\uB808\uB4DC\uC758 \uBA54\uC2DC\uC9C0\uAC00 \uD574\uB2F9 \uC138\uC158\uC73C\uB85C \uC804\uB2EC\uB429\uB2C8\uB2E4.", en: "\u2705 Session attached: `{v}`\nMessages in this thread now go to that session." },
+  noThreadSession: { ko: "\u274C \uC774 \uC2A4\uB808\uB4DC\uC5D0 \uC5F0\uACB0\uB41C \uC138\uC158\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.", en: "\u274C No session linked to this thread." },
+  noSessionMessages: { ko: "\u2139\uFE0F \uC138\uC158\uC5D0 \uBA54\uC2DC\uC9C0\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.", en: "\u2139\uFE0F No messages in session." },
+  nothingToSync: { ko: "\u2705 \uB3D9\uAE30\uD654\uD560 \uC0C8 \uBA54\uC2DC\uC9C0\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.", en: "\u2705 Nothing new to sync." },
+  syncedCount: { ko: "\u2705 {n}\uAC1C \uBA54\uC2DC\uC9C0 \uB3D9\uAE30\uD654 \uC644\uB8CC.", en: "\u2705 Synced {n} message(s)." },
+  syncError: { ko: "\u274C \uB3D9\uAE30\uD654 \uC624\uB958: {msg}", en: "\u274C Sync error: {msg}" },
+  helpTitle: { ko: "*\uC0AC\uC6A9 \uAC00\uB2A5\uD55C \uBA85\uB839:*", en: "*Available commands:*" },
+  helpModel: { ko: "\u2022 `!model` \u2014 \uD604\uC7AC \uBAA8\uB378 \uD655\uC778 / \uBCC0\uACBD", en: "\u2022 `!model` \u2014 show / change current model" },
+  helpModelSet: { ko: "\u2022 `!model provider/model` \u2014 \uBAA8\uB378 \uBCC0\uACBD", en: "\u2022 `!model provider/model` \u2014 change model" },
+  helpModelReset: { ko: "\u2022 `!model reset` \u2014 \uAE30\uBCF8 \uBAA8\uB378 \uBCF5\uC6D0", en: "\u2022 `!model reset` \u2014 restore default model" },
+  helpAgent: { ko: "\u2022 `!agent` \u2014 \uD604\uC7AC \uC5D0\uC774\uC804\uD2B8 \uD655\uC778", en: "\u2022 `!agent` \u2014 show current agent" },
+  helpAgentSet: { ko: "\u2022 `!agent build` \u2014 \uC5D0\uC774\uC804\uD2B8 \uBCC0\uACBD (build, plan \uB4F1)", en: "\u2022 `!agent build` \u2014 change agent (build, plan, ...)" },
+  helpAgentReset: { ko: "\u2022 `!agent reset` \u2014 \uAE30\uBCF8 \uC5D0\uC774\uC804\uD2B8 \uBCF5\uC6D0", en: "\u2022 `!agent reset` \u2014 restore default agent" },
+  helpDir: { ko: "\u2022 `!dir` \u2014 \uD604\uC7AC \uC6CC\uD06C\uC2A4\uD398\uC774\uC2A4 \uD655\uC778", en: "\u2022 `!dir` \u2014 show current workspace" },
+  helpDirSet: { ko: "\u2022 `!dir /path/to/project` \u2014 \uC6CC\uD06C\uC2A4\uD398\uC774\uC2A4 \uBCC0\uACBD", en: "\u2022 `!dir /path/to/project` \u2014 change workspace" },
+  helpAttachSes: { ko: "\u2022 `!attach ses_xxx` \u2014 \uAE30\uC874 \uC138\uC158 \uC5F0\uACB0 (URL \uBD99\uC5EC\uB123\uAE30 \uAC00\uB2A5)", en: "\u2022 `!attach ses_xxx` \u2014 attach existing session (URL paste OK)" },
+  helpAttachBg: { ko: "\u2022 `!attach bg_xxx` \u2014 \uBC31\uADF8\uB77C\uC6B4\uB4DC \uC791\uC5C5 \uC0C1\uD0DC attach", en: "\u2022 `!attach bg_xxx` \u2014 attach background task" },
+  helpSync: { ko: "\u2022 `!sync` \u2014 \uD074\uB77C\uC774\uC5B8\uD2B8 \uBA54\uC2DC\uC9C0\uB97C \uC2AC\uB799\uC73C\uB85C \uB3D9\uAE30\uD654", en: "\u2022 `!sync` \u2014 sync client messages to Slack" },
+  helpReset: { ko: "\u2022 `!reset` \u2014 \uD604\uC7AC \uC2A4\uB808\uB4DC \uC138\uC158 \uB9AC\uC14B", en: "\u2022 `!reset` \u2014 reset this thread's session" },
+  helpHelp: { ko: "\u2022 `!help` \u2014 \uC774 \uB3C4\uC6C0\uB9D0", en: "\u2022 `!help` \u2014 this help" },
+  slackStatusDesc: { ko: "Slack \uC5D0\uC774\uC804\uD2B8 \uC0C1\uD0DC \uD655\uC778", en: "Check Slack agent status" },
+  permRequest: { ko: "\u26A0\uFE0F *\uAD8C\uD55C \uC694\uCCAD*\n", en: "\u26A0\uFE0F *Permission request*\n" },
+  permPattern: { ko: "\uD328\uD134: `{v}`\n", en: "Pattern: `{v}`\n" },
+  permOptions: { ko: "\n*1.* \uD5C8\uC6A9 (\uC774\uBC88\uB9CC)\n*2.* \uD56D\uC0C1 \uD5C8\uC6A9\n*3.* \uAC70\uBD80\n", en: "\n*1.* Allow (once)\n*2.* Always allow\n*3.* Deny\n" },
+  permHint: { ko: "_1/y/yes, 2/always, 3/n/no \uB85C \uB2F5\uD574\uC8FC\uC138\uC694_", en: "_Reply with 1/y/yes, 2/always, 3/n/no_" }
+};
+function t(key, vars) {
+  let s = STR[key][language];
+  if (vars) {
+    for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
+  }
+  return s;
+}
 var cachedBackgroundOutputPath = null;
 var seenInboundEventKeys = /* @__PURE__ */ new Map();
 var pendingPermissions = /* @__PURE__ */ new Map();
@@ -12469,6 +12547,9 @@ function log(m) {
 `);
   } catch {
   }
+}
+function getMsgId(m) {
+  return m?.id || m?.info?.id;
 }
 function loadSessions() {
   try {
@@ -12495,7 +12576,16 @@ function getSessionForThread(threadTs) {
   return null;
 }
 function saveSession(threadTs, sessionId, channel, directory) {
-  sessions[threadTs] = { sessionId, channel, lastUsed: Date.now(), ...directory ? { directory } : {} };
+  const existing = sessions[threadTs];
+  const sessionChanged = existing && existing.sessionId !== sessionId;
+  sessions[threadTs] = {
+    ...existing,
+    sessionId,
+    channel,
+    lastUsed: Date.now(),
+    ...directory ? { directory } : {},
+    ...sessionChanged ? { lastSyncedMessageId: void 0 } : {}
+  };
   saveSessions();
 }
 function markdownToSlackMrkdwn(text) {
@@ -12586,7 +12676,7 @@ async function handlePermissionReply(pending, text, channel, threadTs) {
   else if (["2", "always"].includes(trimmed)) reply = "always";
   else if (["3", "n", "no", "reject"].includes(trimmed)) reply = "reject";
   if (!reply) {
-    slackSend(channel, "_\uC798\uBABB\uB41C \uC751\uB2F5. 1/y/yes, 2/always, 3/n/no \uB85C \uB2F5\uD574\uC8FC\uC138\uC694._", threadTs);
+    slackSend(channel, t("invalidReply"), threadTs);
     return;
   }
   try {
@@ -12595,12 +12685,12 @@ async function handlePermissionReply(pending, text, channel, threadTs) {
       body: { response: reply }
     });
     pendingPermissions.delete(pending.permissionId);
-    const label = reply === "reject" ? "\uAC70\uBD80" : `\uD5C8\uC6A9 (${reply})`;
-    slackSend(channel, `_\uAD8C\uD55C ${label}_`, threadTs);
+    const label = reply === "reject" ? t("permDeny") : `${t("permAllow")} (${reply})`;
+    slackSend(channel, t("permDone", { label }), threadTs);
     log(`permission ${pending.permissionId} replied: ${reply}`);
   } catch (e) {
     pendingPermissions.delete(pending.permissionId);
-    slackSend(channel, `_\uAD8C\uD55C \uC751\uB2F5 \uC2E4\uD328: ${e.message}_`, threadTs);
+    slackSend(channel, t("permReplyFailed", { msg: e.message }), threadTs);
     log(`permission reply error: ${e.message}`);
   }
 }
@@ -12626,14 +12716,14 @@ async function handleQuestionReply(pending, text, channel, threadTs) {
     log(`question replied: ${text.slice(0, 50)}`);
   } catch (e) {
     pendingQuestions.delete(threadTs);
-    slackSend(channel, `_\uC751\uB2F5 \uC804\uB2EC \uC2E4\uD328: ${e.message}_`, threadTs);
+    slackSend(channel, t("answerRelayFailed", { msg: e.message }), threadTs);
     log(`question reply error: ${e.message}`);
   }
 }
 async function handleMessage(channel, text, ts, messageTs, isAllowed = true) {
   if (!pluginClient) return;
   const actualTs = messageTs || ts;
-  log(`handleMessage: ${text.slice(0, 50)}`);
+  log(`[HANDLE-MSG] channel=${channel} ts=${ts} messageTs=${messageTs} text="${text.slice(0, 60)}" isAllowed=${isAllowed}`);
   if (text.startsWith("!")) {
     if (!isAllowed) return;
     const handled = await handleCommand(channel, text, ts);
@@ -12662,7 +12752,7 @@ async function handleMessage(channel, text, ts, messageTs, isAllowed = true) {
         query: directory ? { directory } : void 0
       });
       if (!session?.id) {
-        slackSend(channel, "\u274C \uC138\uC158 \uC0DD\uC131 \uC2E4\uD328", threadTs);
+        slackSend(channel, t("sessionCreateFailed"), threadTs);
         return;
       }
       sessionId = session.id;
@@ -12676,11 +12766,14 @@ async function handleMessage(channel, text, ts, messageTs, isAllowed = true) {
             path: { id: sessionId }
           });
           if (Array.isArray(preMessages) && preMessages.length > 0) {
-            syncCursor = preMessages[preMessages.length - 1]?.id;
+            syncCursor = getMsgId(preMessages[preMessages.length - 1]);
+            log(`pre-prompt cursor fallback: ${syncCursor} (${preMessages.length} messages)`);
           }
         } catch (preFetchErr) {
           log(`pre-prompt cursor fetch error: ${preFetchErr.message}`);
         }
+      } else {
+        log(`syncCursor from session: ${syncCursor}`);
       }
     }
     let promptText = text;
@@ -12703,11 +12796,14 @@ async function handleMessage(channel, text, ts, messageTs, isAllowed = true) {
     let questionPosted = false;
     const seenParts = /* @__PURE__ */ new Set();
     const backgroundTaskIDs = /* @__PURE__ */ new Set();
+    log(`[SSE-SUBSCRIBE] calling pluginClient.event.subscribe() for session=${sessionId} thread=${threadTs}`);
+    const subscribeStart = Date.now();
     const eventResult = await pluginClient.event.subscribe();
+    log(`[SSE-SUBSCRIBE] returned in ${Date.now() - subscribeStart}ms, hasStream=${!!eventResult?.stream}`);
     const stream = eventResult?.stream;
     if (!stream) {
       log("SSE stream not available, falling back to polling");
-      slackSend(channel, "\u274C \uC774\uBCA4\uD2B8 \uC2A4\uD2B8\uB9BC \uC5F0\uACB0 \uC2E4\uD328", threadTs);
+      slackSend(channel, t("streamConnectFailed"), threadTs);
       sendIPC({ type: "slack_reaction_remove", channel, name: "peperun", timestamp: actualTs });
       return;
     }
@@ -12753,7 +12849,7 @@ async function handleMessage(channel, text, ts, messageTs, isAllowed = true) {
       const shouldNotify = stalledMs >= RESPONSE_STALL_MS && (lastDelayNotifiedAt === 0 || now - lastDelayNotifiedAt >= RESPONSE_STALL_NOTIFY_INTERVAL_MS);
       if (shouldNotify) {
         const stalledSec = Math.floor(stalledMs / 1e3);
-        slackSend(channel, `\u23F3 \uC751\uB2F5\uC774 \uC9C0\uC5F0\uB418\uACE0 \uC788\uC5B4\uC694 (${stalledSec}\uCD08 \uACBD\uACFC). \uACC4\uC18D \uCC98\uB9AC \uC911\uC785\uB2C8\uB2E4.`, threadTs);
+        slackSend(channel, t("stalled", { sec: stalledSec }), threadTs);
         lastDelayNotifiedAt = now;
         log(`response stall detected: session=${sessionId} stalled=${stalledSec}s`);
       }
@@ -12772,7 +12868,7 @@ async function handleMessage(channel, text, ts, messageTs, isAllowed = true) {
             questionPosted = true;
             const input = part.state?.input || {};
             const questions = input.questions || [];
-            let msg = "\u2753 *\uC9C8\uBB38*\n";
+            let msg = t("questionHeader");
             for (const q of questions) {
               msg += `
 *${q.header || ""}*
@@ -12785,7 +12881,7 @@ ${q.question}
                 });
               }
             }
-            msg += "\n_\uBC88\uD638 \uB610\uB294 \uD14D\uC2A4\uD2B8\uB85C \uB2F5\uD574\uC8FC\uC138\uC694_";
+            msg += t("questionHint");
             slackSend(channel, msg, threadTs);
             pendingQuestions.set(threadTs, { sessionId, threadTs, channel, createdAt: Date.now() });
             log(`question forwarded to slack for thread ${threadTs}`);
@@ -12815,7 +12911,7 @@ ${q.question}
             for (const detectedId of detectedIds) {
               if (!backgroundTaskIDs.has(detectedId)) {
                 backgroundTaskIDs.add(detectedId);
-                slackSend(channel, `\u{1F9F5} bg \uC791\uC5C5 \uAC10\uC9C0: \`${detectedId}\` (\uC644\uB8CC \uC2DC \uACB0\uACFC\uB97C \uC790\uB3D9 \uD655\uC778\uD569\uB2C8\uB2E4)`, threadTs);
+                slackSend(channel, t("bgDetected", { id: detectedId }), threadTs);
                 log(`detected background task from stream: ${detectedId}`);
               }
             }
@@ -12838,9 +12934,9 @@ ${q.question}
           const todos = evt.properties.todos || [];
           if (todos.length > 0) {
             let msg = "\u{1F4CB} *Plan*\n";
-            for (const t of todos) {
-              const icon = t.status === "completed" ? "\u2705" : t.status === "in_progress" ? "\u{1F504}" : "\u2B1C";
-              msg += `${icon} ${t.content}
+            for (const t2 of todos) {
+              const icon = t2.status === "completed" ? "\u2705" : t2.status === "in_progress" ? "\u{1F504}" : "\u2B1C";
+              msg += `${icon} ${t2.content}
 `;
             }
             slackSend(channel, msg, threadTs);
@@ -12861,26 +12957,33 @@ ${q.question}
       clearInterval(idleCheck);
       clearInterval(delayCheck);
     }
+    log(`[SYNC-START] prevCursor=${syncCursor} sessionId=${sessionId} threadTs=${threadTs}`);
     try {
+      const prevCursor = syncCursor;
       syncCursor = await syncAssistantMessagesSinceCursor(sessionId, channel, threadTs, syncCursor);
+      log(`[SYNC-DONE] prev=${prevCursor} -> new=${syncCursor} thread=${threadTs}`);
       if (syncCursor && sessions[threadTs]) {
         sessions[threadTs].lastSyncedMessageId = syncCursor;
         saveSessions();
+        log(`[SYNC-SAVED] lastSyncedMessageId=${syncCursor} for thread=${threadTs}`);
+      } else {
+        log(`[SYNC-SKIP] syncCursor=${syncCursor} sessions[threadTs]=${!!sessions[threadTs]}`);
       }
     } catch (fetchErr) {
-      log(`final sync error: ${fetchErr.message}`);
+      log(`[SYNC-ERROR] ${fetchErr.message}
+${fetchErr.stack}`);
     }
     if (backgroundTaskIDs.size > 0) {
       const autoTaskIds = [...backgroundTaskIDs].slice(0, AUTO_ATTACH_MAX_TASKS_PER_MESSAGE);
       const autoAttachStartedAt = Date.now();
       if (backgroundTaskIDs.size > autoTaskIds.length) {
         const skipped = backgroundTaskIDs.size - autoTaskIds.length;
-        slackSend(channel, `\u2139\uFE0F \uAC10\uC9C0\uB41C bg \uC791\uC5C5\uC774 \uB9CE\uC544 \uC0C1\uC704 ${autoTaskIds.length}\uAC1C\uB9CC \uC790\uB3D9 \uD655\uC778\uD569\uB2C8\uB2E4. (${skipped}\uAC1C\uB294 \uC218\uB3D9 attach \uAD8C\uC7A5)`, threadTs);
+        slackSend(channel, t("bgTooMany", { n: autoTaskIds.length, skipped }), threadTs);
       }
       for (const bgTaskID of autoTaskIds) {
         const remainingBudgetMs = AUTO_ATTACH_MAX_MONITOR_BUDGET_MS - (Date.now() - autoAttachStartedAt);
         if (remainingBudgetMs <= 0) {
-          slackSend(channel, "\u23F1\uFE0F \uC790\uB3D9 bg \uD655\uC778 \uC608\uC0B0(2\uBD84)\uC744 \uCD08\uACFC\uD558\uC5EC \uCD94\uAC00 \uC791\uC5C5\uC740 \uAC74\uB108\uB701\uB2C8\uB2E4. \uD544\uC694 \uC2DC `!attach bg_xxx`\uB85C \uD655\uC778\uD558\uC138\uC694.", threadTs);
+          slackSend(channel, t("bgBudgetExceeded"), threadTs);
           break;
         }
         const state = await handleAttachBackgroundTask(channel, bgTaskID, threadTs, {
@@ -12905,7 +13008,7 @@ ${q.question}
     log(`session ${sessionId} completed`);
   } catch (e) {
     log(`error: ${e.message}`);
-    slackSend(channel, `\u274C \uC624\uB958: ${e.message}`, ts);
+    slackSend(channel, t("errPrefix", { msg: e.message }), ts);
   }
 }
 function sendLongText(channel, text, threadTs) {
@@ -12952,8 +13055,8 @@ function resolveAttachTimeoutMs(optionTimeoutSec) {
 }
 function timeoutLabel(ms) {
   const sec = Math.max(1, Math.round(ms / 1e3));
-  if (sec % 60 === 0) return `${sec / 60}\uBD84`;
-  return `${sec}\uCD08`;
+  if (sec % 60 === 0) return t("minLabel", { n: sec / 60 });
+  return t("secLabel", { n: sec });
 }
 function collectBackgroundTaskIds(value, found) {
   if (value == null) return;
@@ -13175,30 +13278,34 @@ async function syncAssistantMessagesSinceCursor(sessionId, channel, threadTs, cu
     path: { id: sessionId }
   });
   if (!Array.isArray(messages) || messages.length === 0) return cursorId;
+  log(`[SYNC-MESSAGES] total=${messages.length} cursorId=${cursorId} firstId=${getMsgId(messages[0])} lastId=${getMsgId(messages[messages.length - 1])}`);
   let startIndex = 0;
   if (cursorId) {
-    const cursorIdx = messages.findIndex((m) => m.id === cursorId);
+    const cursorIdx = messages.findIndex((m) => getMsgId(m) === cursorId);
     if (cursorIdx >= 0) startIndex = cursorIdx + 1;
+    else log(`[SYNC-WARN] cursorId ${cursorId} not found in ${messages.length} messages, replaying from start`);
   }
   const unsyncedAssistantMessages = messages.slice(startIndex).filter((m) => m.info?.role === "assistant").sort((a, b) => (a.info?.time?.created || 0) - (b.info?.time?.created || 0));
+  log(`[SYNC-FILTER] startIndex=${startIndex} unsyncedAssistant=${unsyncedAssistantMessages.length}`);
   for (const msg of unsyncedAssistantMessages) {
     if (!Array.isArray(msg.parts)) {
-      log(`skip assistant message with non-array parts: ${msg.id || "unknown"}`);
+      log(`skip assistant message with non-array parts: ${getMsgId(msg) || "unknown"}`);
       continue;
     }
     const textParts = msg.parts.filter((p) => p.type === "text" && p.text).map((p) => p.text).join("\n");
     if (textParts) sendLongText(channel, textParts, threadTs);
   }
   const lastMsg = messages[messages.length - 1];
-  return lastMsg?.id || cursorId;
+  const lastId = getMsgId(lastMsg);
+  log(`[SYNC-RETURN] lastMsg keys=${lastMsg ? Object.keys(lastMsg).join(",") : "null"} lastId=${lastId}`);
+  return lastId || cursorId;
 }
 async function handleAttachBackgroundTask(channel, bgTaskID, ts, options = {}) {
   const announceStart = options.announceStart !== false;
   const renderPayloadOnComplete = options.renderPayloadOnComplete !== false;
   const effectiveTimeoutMs = Math.max(1e3, Math.min(attachBgTimeoutMs, options.maxWaitMs ?? attachBgTimeoutMs));
   if (announceStart) {
-    slackSend(channel, `\u{1F517} bg \uC791\uC5C5 attach: \`${bgTaskID}\`
-\uC644\uB8CC\uAE4C\uC9C0 \uC0C1\uD0DC\uB97C \uD655\uC778\uD569\uB2C8\uB2E4.`, ts);
+    slackSend(channel, t("bgAttach", { id: bgTaskID }), ts);
   }
   const startedAt = Date.now();
   while (Date.now() - startedAt < effectiveTimeoutMs) {
@@ -13209,7 +13316,7 @@ async function handleAttachBackgroundTask(channel, bgTaskID, ts, options = {}) {
     const probe = await callBackgroundOutput(bgTaskID, requestTimeoutMs);
     if (!probe.ok) {
       if (probe.unsupported) {
-        slackSend(channel, "\u274C \uD604\uC7AC OpenCode \uC11C\uBC84\uC5D0\uC11C background output API\uB97C \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.", ts);
+        slackSend(channel, t("bgApiMissing"), ts);
         return "unsupported";
       }
       if (probe.retryable) {
@@ -13221,38 +13328,38 @@ async function handleAttachBackgroundTask(channel, bgTaskID, ts, options = {}) {
         continue;
       }
       if (probe.statusCode === 401 || probe.statusCode === 403) {
-        slackSend(channel, `\u274C bg \uC791\uC5C5 \uC811\uADFC \uAD8C\uD55C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4: \`${bgTaskID}\``, ts);
+        slackSend(channel, t("bgNoAccess", { id: bgTaskID }), ts);
         return "access_denied";
       }
       if (probe.statusCode === 404) {
-        slackSend(channel, `\u274C bg \uC791\uC5C5\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4: \`${bgTaskID}\``, ts);
+        slackSend(channel, t("bgNotFound", { id: bgTaskID }), ts);
         return "not_found";
       }
       const errMessage = probe.error ? stringifyLimited(probe.error, 500) : "unknown error";
-      slackSend(channel, `\u274C bg \uC870\uD68C \uC624\uB958: ${errMessage}`, ts);
+      slackSend(channel, t("bgLookupError", { msg: errMessage }), ts);
       return "error";
     }
     const state = deriveBackgroundState(probe.payload);
     if (state === "completed") {
       if (renderPayloadOnComplete) {
-        sendLongText(channel, `\u2705 bg \uC791\uC5C5 \uC644\uB8CC: \`${bgTaskID}\`
+        sendLongText(channel, `${t("bgDone", { id: bgTaskID })}
 ${stringifyLimited(probe.payload)}`, ts);
       } else {
-        slackSend(channel, `\u2705 bg \uC791\uC5C5 \uC644\uB8CC: \`${bgTaskID}\``, ts);
+        slackSend(channel, t("bgDone", { id: bgTaskID }), ts);
       }
       return "completed";
     }
     if (state === "error") {
-      sendLongText(channel, `\u274C bg \uC791\uC5C5 \uC2E4\uD328: \`${bgTaskID}\`
+      sendLongText(channel, `${t("bgFailed", { id: bgTaskID })}
 ${stringifyLimited(probe.payload)}`, ts);
       return "error";
     }
     if (state === "cancelled") {
-      slackSend(channel, `\u{1F6AB} bg \uC791\uC5C5\uC774 \uCDE8\uC18C\uB418\uC5C8\uC2B5\uB2C8\uB2E4: \`${bgTaskID}\``, ts);
+      slackSend(channel, t("bgCancelled", { id: bgTaskID }), ts);
       return "cancelled";
     }
     if (state === "not_found") {
-      slackSend(channel, `\u274C bg \uC791\uC5C5\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4: \`${bgTaskID}\``, ts);
+      slackSend(channel, t("bgNotFound", { id: bgTaskID }), ts);
       return "not_found";
     }
     const waitMs = attachPollIntervalMs(Date.now() - startedAt);
@@ -13261,8 +13368,7 @@ ${stringifyLimited(probe.payload)}`, ts);
     await sleep(Math.min(waitMs, waitRemainingMs));
   }
   log(`attach bg timeout without terminal state: ${bgTaskID}`);
-  slackSend(channel, `\u23F1\uFE0F bg \uC791\uC5C5 \uB300\uAE30 \uC2DC\uAC04 \uCD08\uACFC (${timeoutLabel(effectiveTimeoutMs)}): \`${bgTaskID}\`
-\uB2E4\uC2DC \`!attach ${bgTaskID}\`\uB85C \uC774\uC5B4\uC11C \uD655\uC778\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.`, ts);
+  slackSend(channel, t("bgTimeout", { t: timeoutLabel(effectiveTimeoutMs), id: bgTaskID }), ts);
   return "timeout";
 }
 async function handleCommand(channel, text, ts) {
@@ -13273,7 +13379,7 @@ async function handleCommand(channel, text, ts) {
     const arg = parts.slice(1).join(" ").trim();
     if (!arg) {
       const current = modelOverride ? `${modelOverride.providerID}/${modelOverride.modelID}` : "(default)";
-      const lines = [`*\uD604\uC7AC \uBAA8\uB378:* \`${current}\``, "", "*\uC0AC\uC6A9 \uAC00\uB2A5:*"];
+      const lines = [t("currentModel", { v: current }), "", t("available")];
       try {
         const { data: config2 } = await pluginClient.config.get();
         if (config2?.provider) {
@@ -13284,51 +13390,51 @@ async function handleCommand(channel, text, ts) {
           }
         }
       } catch {
-        lines.push("_(\uBAA8\uB378 \uBAA9\uB85D\uC744 \uAC00\uC838\uC62C \uC218 \uC5C6\uC2B5\uB2C8\uB2E4)_");
+        lines.push(t("modelListFailed"));
       }
       slackSend(channel, lines.join("\n"), ts);
       return true;
     }
     if (arg === "reset" || arg === "default") {
       modelOverride = null;
-      slackSend(channel, "\u2705 \uAE30\uBCF8 \uBAA8\uB378\uB85C \uBCF5\uC6D0", ts);
+      slackSend(channel, t("modelRestored"), ts);
       return true;
     }
     const match = arg.match(/^([^/]+)\/(.+)$/);
     if (match) {
       modelOverride = { providerID: match[1], modelID: match[2] };
-      slackSend(channel, `\u2705 \uBAA8\uB378 \uBCC0\uACBD: \`${arg}\``, ts);
+      slackSend(channel, t("modelChanged", { v: arg }), ts);
     } else {
-      slackSend(channel, `\u274C \uD615\uC2DD: \`!model provider/model\` (\uC608: \`!model kiro/claude-sonnet-4-6\`)`, ts);
+      slackSend(channel, t("modelUsage"), ts);
     }
     return true;
   }
   if (cmd === "!reset") {
     delete sessions[ts];
     saveSessions();
-    slackSend(channel, "\u2705 \uC138\uC158 \uB9AC\uC14B\uB428. \uB2E4\uC74C \uBA54\uC2DC\uC9C0\uBD80\uD130 \uC0C8 \uC138\uC158.", ts);
+    slackSend(channel, t("sessionReset"), ts);
     return true;
   }
   if (cmd === "!agent") {
     const arg = parts.slice(1).join(" ").trim();
     if (!arg) {
-      slackSend(channel, `*\uD604\uC7AC \uC5D0\uC774\uC804\uD2B8:* \`${agentOverride || "(default)"}\``, ts);
+      slackSend(channel, t("currentAgent", { v: agentOverride || t("defaultLabel") }), ts);
       return true;
     }
     if (arg === "reset" || arg === "default") {
       agentOverride = null;
-      slackSend(channel, "\u2705 \uAE30\uBCF8 \uC5D0\uC774\uC804\uD2B8\uB85C \uBCF5\uC6D0", ts);
+      slackSend(channel, t("agentRestored"), ts);
       return true;
     }
     agentOverride = arg;
-    slackSend(channel, `\u2705 \uC5D0\uC774\uC804\uD2B8 \uBCC0\uACBD: \`${arg}\``, ts);
+    slackSend(channel, t("agentChanged", { v: arg }), ts);
     return true;
   }
   if (cmd === "!dir") {
     const arg = parts.slice(1).join(" ").trim();
     if (!arg) {
-      const currentDir = sessions[ts]?.directory || defaultDirectory || "(\uAE30\uBCF8)";
-      slackSend(channel, `*\uD604\uC7AC \uC6CC\uD06C\uC2A4\uD398\uC774\uC2A4:* \`${currentDir}\``, ts);
+      const currentDir = sessions[ts]?.directory || defaultDirectory || t("noneLabel");
+      slackSend(channel, t("currentDir", { v: currentDir }), ts);
       return true;
     }
     const resolvedDir = expandTilde(arg);
@@ -13338,20 +13444,19 @@ async function handleCommand(channel, text, ts) {
       sessions[ts].directory = resolvedDir;
     }
     saveSessions();
-    slackSend(channel, `\u2705 \uC6CC\uD06C\uC2A4\uD398\uC774\uC2A4 \uBCC0\uACBD: \`${resolvedDir}\`
-\uB2E4\uC74C \uBA54\uC2DC\uC9C0\uBD80\uD130 \uC774 \uB514\uB809\uD1A0\uB9AC\uC5D0\uC11C \uC138\uC158 \uC0DD\uC131.`, ts);
+    slackSend(channel, t("dirChanged", { v: resolvedDir }), ts);
     return true;
   }
   if (cmd === "!attach") {
     const arg = parts.slice(1).join(" ").trim();
     if (!arg) {
-      const currentSession = sessions[ts]?.sessionId || "(\uC5C6\uC74C)";
-      slackSend(channel, `*\uD604\uC7AC \uC138\uC158:* \`${currentSession}\``, ts);
+      const currentSession = sessions[ts]?.sessionId || t("noneLabel");
+      slackSend(channel, t("currentSession", { v: currentSession }), ts);
       return true;
     }
     if (arg.startsWith("bg_")) {
       if (!BG_TASK_ID_PATTERN.test(arg)) {
-        slackSend(channel, "\u274C \uD615\uC2DD: `!attach bg_xxx` (\uC601\uBB38/\uC22B\uC790/`_`/`-`\uB9CC \uD5C8\uC6A9)", ts);
+        slackSend(channel, t("attachBgUsage"), ts);
         return true;
       }
       await handleAttachBackgroundTask(channel, arg, ts);
@@ -13363,18 +13468,17 @@ async function handleCommand(channel, text, ts) {
       sessionId = urlMatch[1];
     }
     if (!sessionId.startsWith("ses_")) {
-      slackSend(channel, `\u274C \uD615\uC2DD: \`!attach ses_xxx\` \uB610\uB294 OpenCode URL \uBD99\uC5EC\uB123\uAE30`, ts);
+      slackSend(channel, t("attachSesUsage"), ts);
       return true;
     }
     saveSession(ts, sessionId, channel, sessions[ts]?.directory);
-    slackSend(channel, `\u2705 \uC138\uC158 \uC5F0\uACB0: \`${sessionId}\`
-\uC774 \uC2A4\uB808\uB4DC\uC758 \uBA54\uC2DC\uC9C0\uAC00 \uD574\uB2F9 \uC138\uC158\uC73C\uB85C \uC804\uB2EC\uB429\uB2C8\uB2E4.`, ts);
+    slackSend(channel, t("sessionAttached", { v: sessionId }), ts);
     return true;
   }
   if (cmd === "!sync") {
     const session = sessions[ts];
     if (!session?.sessionId) {
-      slackSend(channel, "\u274C \uC774 \uC2A4\uB808\uB4DC\uC5D0 \uC5F0\uACB0\uB41C \uC138\uC158\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.", ts);
+      slackSend(channel, t("noThreadSession"), ts);
       return true;
     }
     try {
@@ -13382,20 +13486,20 @@ async function handleCommand(channel, text, ts) {
         path: { id: session.sessionId }
       });
       if (!Array.isArray(messages) || messages.length === 0) {
-        slackSend(channel, "\u2139\uFE0F \uC138\uC158\uC5D0 \uBA54\uC2DC\uC9C0\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.", ts);
+        slackSend(channel, t("noSessionMessages"), ts);
         return true;
       }
       const cursor = session.lastSyncedMessageId;
       let startIndex = 0;
       if (cursor) {
-        const cursorIdx = messages.findIndex((m) => m.id === cursor);
+        const cursorIdx = messages.findIndex((m) => getMsgId(m) === cursor);
         if (cursorIdx >= 0) startIndex = cursorIdx + 1;
       }
       const unsyncedMessages = messages.slice(startIndex).filter(
         (m) => m.info?.role === "assistant" || m.info?.role === "user"
       ).sort((a, b) => (a.info?.time?.created || 0) - (b.info?.time?.created || 0));
       if (unsyncedMessages.length === 0) {
-        slackSend(channel, "\u2705 \uB3D9\uAE30\uD654\uD560 \uC0C8 \uBA54\uC2DC\uC9C0\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.", ts);
+        slackSend(channel, t("nothingToSync"), ts);
         return true;
       }
       for (const msg of unsyncedMessages) {
@@ -13412,37 +13516,38 @@ ${textParts}`, ts);
         }
       }
       const lastMsg = messages[messages.length - 1];
-      if (lastMsg?.id) {
-        sessions[ts].lastSyncedMessageId = lastMsg.id;
+      const lastId = getMsgId(lastMsg);
+      if (lastId) {
+        sessions[ts].lastSyncedMessageId = lastId;
         saveSessions();
       }
       const syncedCount = unsyncedMessages.filter((m) => {
         const parts2 = m.parts.filter((p) => p.type === "text" && p.text);
         return parts2.length > 0;
       }).length;
-      slackSend(channel, `\u2705 ${syncedCount}\uAC1C \uBA54\uC2DC\uC9C0 \uB3D9\uAE30\uD654 \uC644\uB8CC.`, ts);
+      slackSend(channel, t("syncedCount", { n: syncedCount }), ts);
     } catch (err) {
       log(`!sync error: ${err.message}`);
-      slackSend(channel, `\u274C \uB3D9\uAE30\uD654 \uC624\uB958: ${err.message}`, ts);
+      slackSend(channel, t("syncError", { msg: err.message }), ts);
     }
     return true;
   }
   if (cmd === "!help") {
     const help = [
-      "*\uC0AC\uC6A9 \uAC00\uB2A5\uD55C \uBA85\uB839:*",
-      "\u2022 `!model` \u2014 \uD604\uC7AC \uBAA8\uB378 \uD655\uC778 / \uBCC0\uACBD",
-      "\u2022 `!model provider/model` \u2014 \uBAA8\uB378 \uBCC0\uACBD",
-      "\u2022 `!model reset` \u2014 \uAE30\uBCF8 \uBAA8\uB378 \uBCF5\uC6D0",
-      "\u2022 `!agent` \u2014 \uD604\uC7AC \uC5D0\uC774\uC804\uD2B8 \uD655\uC778",
-      "\u2022 `!agent build` \u2014 \uC5D0\uC774\uC804\uD2B8 \uBCC0\uACBD (build, plan \uB4F1)",
-      "\u2022 `!agent reset` \u2014 \uAE30\uBCF8 \uC5D0\uC774\uC804\uD2B8 \uBCF5\uC6D0",
-      "\u2022 `!dir` \u2014 \uD604\uC7AC \uC6CC\uD06C\uC2A4\uD398\uC774\uC2A4 \uD655\uC778",
-      "\u2022 `!dir /path/to/project` \u2014 \uC6CC\uD06C\uC2A4\uD398\uC774\uC2A4 \uBCC0\uACBD",
-      "\u2022 `!attach ses_xxx` \u2014 \uAE30\uC874 \uC138\uC158 \uC5F0\uACB0 (URL \uBD99\uC5EC\uB123\uAE30 \uAC00\uB2A5)",
-      "\u2022 `!attach bg_xxx` \u2014 \uBC31\uADF8\uB77C\uC6B4\uB4DC \uC791\uC5C5 \uC0C1\uD0DC attach",
-      "\u2022 `!sync` \u2014 \uD074\uB77C\uC774\uC5B8\uD2B8 \uBA54\uC2DC\uC9C0\uB97C \uC2AC\uB799\uC73C\uB85C \uB3D9\uAE30\uD654",
-      "\u2022 `!reset` \u2014 \uD604\uC7AC \uC2A4\uB808\uB4DC \uC138\uC158 \uB9AC\uC14B",
-      "\u2022 `!help` \u2014 \uC774 \uB3C4\uC6C0\uB9D0"
+      t("helpTitle"),
+      t("helpModel"),
+      t("helpModelSet"),
+      t("helpModelReset"),
+      t("helpAgent"),
+      t("helpAgentSet"),
+      t("helpAgentReset"),
+      t("helpDir"),
+      t("helpDirSet"),
+      t("helpAttachSes"),
+      t("helpAttachBg"),
+      t("helpSync"),
+      t("helpReset"),
+      t("helpHelp")
     ];
     slackSend(channel, help.join("\n"), ts);
     return true;
@@ -13451,6 +13556,7 @@ ${textParts}`, ts);
 }
 function attachWorkerHandlers(w) {
   w.on("message", (msg) => {
+    log(`[IPC-RAW] type=${msg?.type} pid=${w.pid} connected=${w.connected} listenerCount=${w.listenerCount?.("message") ?? "?"}`);
     if (msg?.type === "slack_event") {
       log(`inbound received ${inboundMeta(msg)}`);
       if (!shouldProcessInboundEvent(msg)) {
@@ -13458,9 +13564,17 @@ function attachWorkerHandlers(w) {
       }
       const isAllowed = !allowedUsers || !allowlistReady || allowedUsers.has(msg.user);
       const isThreadReply = msg.threadTs !== msg.messageTs;
+      const isMention = msg.eventSubtype === "app_mention";
       if (!isAllowed && !isThreadReply) {
         log(`inbound blocked_user ${inboundMeta(msg)} reason=new_thread_not_allowlisted`);
         return;
+      }
+      const isDM = typeof msg.channel === "string" && msg.channel.startsWith("D");
+      if (isThreadReply && !isMention && !getSessionForThread(msg.threadTs)) {
+        if (!isAllowed || !isDM) {
+          log(`inbound ignored ${inboundMeta(msg)} reason=thread_reply_no_session`);
+          return;
+        }
       }
       log(`inbound dispatch_handleMessage ${inboundMeta(msg)}`);
       handleMessage(msg.channel, msg.text, msg.threadTs, msg.messageTs, isAllowed);
@@ -13538,7 +13652,7 @@ function stopWorker() {
   log("worker stopped");
 }
 var slackStatusTool = tool({
-  description: "Slack \uC5D0\uC774\uC804\uD2B8 \uC0C1\uD0DC \uD655\uC778",
+  description: "Check Slack agent status / Slack \uC5D0\uC774\uC804\uD2B8 \uC0C1\uD0DC \uD655\uC778",
   args: {},
   async execute() {
     const status = worker && !worker.killed ? "running" : "stopped";
@@ -13551,87 +13665,97 @@ var pluginModule = {
   server: async (input, options) => {
     log("server() called");
     if (initialized) return { tool: { slack_status: slackStatusTool } };
-    const botToken = options?.SLACK_BOT_TOKEN || process.env.SLACK_BOT_TOKEN || "";
-    const appToken = options?.SLACK_APP_TOKEN || process.env.SLACK_APP_TOKEN || "";
-    const enabled = process.env.SLACK_AGENT_ENABLED ?? options?.SLACK_AGENT_ENABLED ?? "true";
-    if (enabled === "false" || enabled === "0") {
-      log("DISABLED \u2014 SLACK_AGENT_ENABLED=false");
-      initialized = true;
-      return { tool: { slack_status: slackStatusTool } };
-    }
-    if (!botToken || !appToken) {
-      log("DISABLED \u2014 missing tokens");
-      initialized = true;
-      return { tool: { slack_status: slackStatusTool } };
-    }
-    pluginClient = input.client;
-    defaultDirectory = expandTilde(options?.DEFAULT_DIRECTORY || process.env.SLACK_DEFAULT_DIRECTORY || input.directory);
-    agentOverride = options?.DEFAULT_AGENT || process.env.SLACK_DEFAULT_AGENT || null;
-    if (agentOverride) log(`default agent: ${agentOverride}`);
-    attachBgTimeoutMs = resolveAttachTimeoutMs(options?.ATTACH_TIMEOUT_SEC);
-    log(`attach timeout set to ${attachBgTimeoutMs}ms`);
-    sessionsPath = join(input.directory, "slack-sessions.json");
-    loadSessions();
-    log(`sessions loaded: ${Object.keys(sessions).length} entries from ${sessionsPath}`);
-    const allowedUsersStr = options?.ALLOWED_USERS || process.env.SLACK_ALLOWED_USERS || "";
-    let emailsToResolve = [];
-    if (allowedUsersStr) {
-      const entries = allowedUsersStr.split(",").map((u) => u.trim()).filter(Boolean);
-      allowedUsers = new Set(entries.filter((e) => e.startsWith("U")));
-      emailsToResolve = entries.filter((e) => e.includes("@"));
-      log(`allowed users: ${[...allowedUsers].join(", ")}${emailsToResolve.length ? ` + ${emailsToResolve.length} emails to resolve` : ""}`);
-    }
-    const workerEnv = {
-      SLACK_BOT_TOKEN: botToken,
-      SLACK_APP_TOKEN: appToken
-    };
-    const caCerts = options?.NODE_EXTRA_CA_CERTS || process.env.NODE_EXTRA_CA_CERTS || "";
-    if (caCerts) workerEnv.NODE_EXTRA_CA_CERTS = caCerts;
-    if (emailsToResolve.length > 0) {
-      allowlistReady = false;
-    }
-    startWorker(workerEnv);
-    if (emailsToResolve.length > 0) {
-      sendIPC({ type: "resolve_emails", emails: emailsToResolve });
-    }
     initialized = true;
-    log("plugin initialized (hybrid sidecar + persistent sessions)");
-    return {
-      tool: { slack_status: slackStatusTool },
-      "permission.ask": async (input2, output) => {
-        const sessionEntry = Object.entries(sessions).find(
-          ([_, s]) => s.sessionId === input2.sessionID
-        );
-        if (!sessionEntry) return;
-        const [threadTs, session] = sessionEntry;
-        pendingPermissions.set(input2.id, {
-          permissionId: input2.id,
-          sessionId: input2.sessionID,
-          threadTs,
-          channel: session.channel,
-          createdAt: Date.now()
-        });
-        let msg = "\u26A0\uFE0F *\uAD8C\uD55C \uC694\uCCAD*\n";
-        msg += `\`${input2.title}\`
-`;
-        if (input2.pattern) {
-          const patterns = Array.isArray(input2.pattern) ? input2.pattern.join(", ") : input2.pattern;
-          msg += `\uD328\uD134: \`${patterns}\`
-`;
-        }
-        msg += "\n*1.* \uD5C8\uC6A9 (\uC774\uBC88\uB9CC)\n*2.* \uD56D\uC0C1 \uD5C8\uC6A9\n*3.* \uAC70\uBD80\n";
-        msg += "_1/y/yes, 2/always, 3/n/no \uB85C \uB2F5\uD574\uC8FC\uC138\uC694_";
-        slackSend(session.channel, msg, threadTs);
-        log(`permission.ask forwarded to slack: ${input2.id} (${input2.title})`);
-        output.status = "ask";
-      },
-      dispose: async () => {
-        stopWorker();
-        pluginClient = null;
-        initialized = false;
-        log("shutdown");
+    try {
+      const botToken = options?.SLACK_BOT_TOKEN || process.env.SLACK_BOT_TOKEN || "";
+      const appToken = options?.SLACK_APP_TOKEN || process.env.SLACK_APP_TOKEN || "";
+      const enabled = process.env.SLACK_AGENT_ENABLED ?? options?.SLACK_AGENT_ENABLED ?? "true";
+      if (enabled === "false" || enabled === "0") {
+        log("DISABLED \u2014 SLACK_AGENT_ENABLED=false");
+        return { tool: { slack_status: slackStatusTool } };
       }
-    };
+      if (!botToken || !appToken) {
+        log("DISABLED \u2014 missing tokens");
+        return { tool: { slack_status: slackStatusTool } };
+      }
+      pluginClient = input.client;
+      defaultDirectory = expandTilde(options?.DEFAULT_DIRECTORY || process.env.SLACK_DEFAULT_DIRECTORY || input.directory);
+      agentOverride = options?.DEFAULT_AGENT || process.env.SLACK_DEFAULT_AGENT || null;
+      if (agentOverride) log(`default agent: ${agentOverride}`);
+      attachBgTimeoutMs = resolveAttachTimeoutMs(options?.ATTACH_TIMEOUT_SEC);
+      const languageOpt = (options?.LANGUAGE || process.env.SLACK_LANGUAGE || "ko").toLowerCase();
+      language = languageOpt === "en" ? "en" : "ko";
+      log(`language: ${language}`);
+      log(`attach timeout set to ${attachBgTimeoutMs}ms`);
+      sessionsPath = join(input.directory, "slack-sessions.json");
+      loadSessions();
+      log(`sessions loaded: ${Object.keys(sessions).length} entries from ${sessionsPath}`);
+      const allowedUsersStr = options?.ALLOWED_USERS || process.env.SLACK_ALLOWED_USERS || "";
+      let emailsToResolve = [];
+      if (allowedUsersStr) {
+        const entries = allowedUsersStr.split(",").map((u) => u.trim()).filter(Boolean);
+        allowedUsers = new Set(entries.filter((e) => e.startsWith("U")));
+        emailsToResolve = entries.filter((e) => e.includes("@"));
+        log(`allowed users: ${[...allowedUsers].join(", ")}${emailsToResolve.length ? ` + ${emailsToResolve.length} emails to resolve` : ""}`);
+      }
+      const workerEnv = {
+        SLACK_BOT_TOKEN: botToken,
+        SLACK_APP_TOKEN: appToken
+      };
+      const caCerts = options?.NODE_EXTRA_CA_CERTS || process.env.NODE_EXTRA_CA_CERTS || "";
+      if (caCerts) workerEnv.NODE_EXTRA_CA_CERTS = caCerts;
+      if (emailsToResolve.length > 0) {
+        allowlistReady = false;
+      }
+      startWorker(workerEnv);
+      if (emailsToResolve.length > 0) {
+        sendIPC({ type: "resolve_emails", emails: emailsToResolve });
+      }
+      log("plugin initialized (hybrid sidecar + persistent sessions)");
+      return {
+        tool: { slack_status: slackStatusTool },
+        "permission.ask": async (input2, output) => {
+          const sessionEntry = Object.entries(sessions).find(
+            ([_, s]) => s.sessionId === input2.sessionID
+          );
+          if (!sessionEntry) return;
+          const [threadTs, session] = sessionEntry;
+          pendingPermissions.set(input2.id, {
+            permissionId: input2.id,
+            sessionId: input2.sessionID,
+            threadTs,
+            channel: session.channel,
+            createdAt: Date.now()
+          });
+          let msg = t("permRequest");
+          msg += `\`${input2.title}\`
+`;
+          if (input2.pattern) {
+            const patterns = Array.isArray(input2.pattern) ? input2.pattern.join(", ") : input2.pattern;
+            msg += t("permPattern", { v: patterns });
+          }
+          msg += t("permOptions");
+          msg += t("permHint");
+          slackSend(session.channel, msg, threadTs);
+          log(`permission.ask forwarded to slack: ${input2.id} (${input2.title})`);
+          output.status = "ask";
+        },
+        dispose: async () => {
+          stopWorker();
+          pluginClient = null;
+          initialized = false;
+          log("shutdown");
+        }
+      };
+    } catch (err) {
+      stopWorker();
+      pluginClient = null;
+      allowedUsers = null;
+      allowlistReady = true;
+      initialized = false;
+      log(`server() failed: ${err}`);
+      throw err;
+    }
   }
 };
 var plugin_default = pluginModule;
