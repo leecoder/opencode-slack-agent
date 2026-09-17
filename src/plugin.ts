@@ -29,6 +29,87 @@ let defaultDirectory: string = "";
 let allowedUsers: Set<string> | null = null;
 let allowlistReady = true;
 let attachBgTimeoutMs = DEFAULT_ATTACH_TIMEOUT_SEC * 1000;
+type Language = "ko" | "en";
+let language: Language = "ko";
+
+const STR: Record<string, { ko: string; en: string }> = {
+  invalidReply: { ko: "_잘못된 응답. 1/y/yes, 2/always, 3/n/no 로 답해주세요._", en: "_Invalid reply. Answer with 1/y/yes, 2/always, 3/n/no._" },
+  permAllow: { ko: "허용", en: "Allowed" },
+  permDeny: { ko: "거부", en: "Denied" },
+  permDone: { ko: "_권한 {label}_", en: "_Permission {label}_" },
+  permReplyFailed: { ko: "_권한 응답 실패: {msg}_", en: "_Permission reply failed: {msg}_" },
+  answerRelayFailed: { ko: "_응답 전달 실패: {msg}_", en: "_Failed to relay answer: {msg}_" },
+  sessionCreateFailed: { ko: "❌ 세션 생성 실패", en: "❌ Failed to create session" },
+  streamConnectFailed: { ko: "❌ 이벤트 스트림 연결 실패", en: "❌ Failed to connect event stream" },
+  stalled: { ko: "⏳ 응답이 지연되고 있어요 ({sec}초 경과). 계속 처리 중입니다.", en: "⏳ Response is delayed ({sec}s elapsed). Still working." },
+  questionHeader: { ko: "❓ *질문*\n", en: "❓ *Question*\n" },
+  questionHint: { ko: "\n_번호 또는 텍스트로 답해주세요_", en: "\n_Reply with a number or text_" },
+  bgDetected: { ko: "🧵 bg 작업 감지: `{id}` (완료 시 결과를 자동 확인합니다)", en: "🧵 Background task detected: `{id}` (will auto-check on completion)" },
+  bgTooMany: { ko: "ℹ️ 감지된 bg 작업이 많아 상위 {n}개만 자동 확인합니다. ({skipped}개는 수동 attach 권장)", en: "ℹ️ Many background tasks detected, auto-checking top {n}. ({skipped} need manual attach)" },
+  bgBudgetExceeded: { ko: "⏱️ 자동 bg 확인 예산(2분)을 초과하여 추가 작업은 건너뜁니다. 필요 시 `!attach bg_xxx`로 확인하세요.", en: "⏱️ Auto bg-check budget (2 min) exceeded, skipping the rest. Use `!attach bg_xxx` if needed." },
+  errPrefix: { ko: "❌ 오류: {msg}", en: "❌ Error: {msg}" },
+  minLabel: { ko: "{n}분", en: "{n}m" },
+  secLabel: { ko: "{n}초", en: "{n}s" },
+  bgAttach: { ko: "🔗 bg 작업 attach: `{id}`\n완료까지 상태를 확인합니다.", en: "🔗 Background task attached: `{id}`\nWatching until completion." },
+  bgApiMissing: { ko: "❌ 현재 OpenCode 서버에서 background output API를 찾을 수 없습니다.", en: "❌ Background output API not found on the current OpenCode server." },
+  bgNoAccess: { ko: "❌ bg 작업 접근 권한이 없습니다: `{id}`", en: "❌ No access to background task: `{id}`" },
+  bgNotFound: { ko: "❌ bg 작업을 찾을 수 없습니다: `{id}`", en: "❌ Background task not found: `{id}`" },
+  bgLookupError: { ko: "❌ bg 조회 오류: {msg}", en: "❌ Background task lookup error: {msg}" },
+  bgDone: { ko: "✅ bg 작업 완료: `{id}`", en: "✅ Background task done: `{id}`" },
+  bgFailed: { ko: "❌ bg 작업 실패: `{id}`", en: "❌ Background task failed: `{id}`" },
+  bgCancelled: { ko: "🚫 bg 작업이 취소되었습니다: `{id}`", en: "🚫 Background task cancelled: `{id}`" },
+  bgTimeout: { ko: "⏱️ bg 작업 대기 시간 초과 ({t}): `{id}`\n다시 `!attach {id}`로 이어서 확인할 수 있습니다.", en: "⏱️ Background task wait timed out ({t}): `{id}`\nResume with `!attach {id}`." },
+  currentModel: { ko: "*현재 모델:* `{v}`", en: "*Current model:* `{v}`" },
+  available: { ko: "*사용 가능:*", en: "*Available:*" },
+  modelListFailed: { ko: "_(모델 목록을 가져올 수 없습니다)_", en: "_(could not fetch model list)_" },
+  modelRestored: { ko: "✅ 기본 모델로 복원", en: "✅ Restored default model" },
+  modelChanged: { ko: "✅ 모델 변경: `{v}`", en: "✅ Model changed: `{v}`" },
+  modelUsage: { ko: "❌ 형식: `!model provider/model` (예: `!model kiro/claude-sonnet-4-6`)", en: "❌ Usage: `!model provider/model` (e.g. `!model kiro/claude-sonnet-4-6`)" },
+  sessionReset: { ko: "✅ 세션 리셋됨. 다음 메시지부터 새 세션.", en: "✅ Session reset. A new session starts with your next message." },
+  currentAgent: { ko: "*현재 에이전트:* `{v}`", en: "*Current agent:* `{v}`" },
+  agentRestored: { ko: "✅ 기본 에이전트로 복원", en: "✅ Restored default agent" },
+  agentChanged: { ko: "✅ 에이전트 변경: `{v}`", en: "✅ Agent changed: `{v}`" },
+  defaultLabel: { ko: "(기본)", en: "(default)" },
+  currentDir: { ko: "*현재 워크스페이스:* `{v}`", en: "*Current workspace:* `{v}`" },
+  dirChanged: { ko: "✅ 워크스페이스 변경: `{v}`\n다음 메시지부터 이 디렉토리에서 세션 생성.", en: "✅ Workspace changed: `{v}`\nNew sessions use this directory from your next message." },
+  noneLabel: { ko: "(없음)", en: "(none)" },
+  currentSession: { ko: "*현재 세션:* `{v}`", en: "*Current session:* `{v}`" },
+  attachBgUsage: { ko: "❌ 형식: `!attach bg_xxx` (영문/숫자/`_`/`-`만 허용)", en: "❌ Usage: `!attach bg_xxx` (letters/numbers/`_`/`-` only)" },
+  attachSesUsage: { ko: "❌ 형식: `!attach ses_xxx` 또는 OpenCode URL 붙여넣기", en: "❌ Usage: `!attach ses_xxx` or paste an OpenCode URL" },
+  sessionAttached: { ko: "✅ 세션 연결: `{v}`\n이 스레드의 메시지가 해당 세션으로 전달됩니다.", en: "✅ Session attached: `{v}`\nMessages in this thread now go to that session." },
+  noThreadSession: { ko: "❌ 이 스레드에 연결된 세션이 없습니다.", en: "❌ No session linked to this thread." },
+  noSessionMessages: { ko: "ℹ️ 세션에 메시지가 없습니다.", en: "ℹ️ No messages in session." },
+  nothingToSync: { ko: "✅ 동기화할 새 메시지가 없습니다.", en: "✅ Nothing new to sync." },
+  syncedCount: { ko: "✅ {n}개 메시지 동기화 완료.", en: "✅ Synced {n} message(s)." },
+  syncError: { ko: "❌ 동기화 오류: {msg}", en: "❌ Sync error: {msg}" },
+  helpTitle: { ko: "*사용 가능한 명령:*", en: "*Available commands:*" },
+  helpModel: { ko: "• `!model` — 현재 모델 확인 / 변경", en: "• `!model` — show / change current model" },
+  helpModelSet: { ko: "• `!model provider/model` — 모델 변경", en: "• `!model provider/model` — change model" },
+  helpModelReset: { ko: "• `!model reset` — 기본 모델 복원", en: "• `!model reset` — restore default model" },
+  helpAgent: { ko: "• `!agent` — 현재 에이전트 확인", en: "• `!agent` — show current agent" },
+  helpAgentSet: { ko: "• `!agent build` — 에이전트 변경 (build, plan 등)", en: "• `!agent build` — change agent (build, plan, ...)" },
+  helpAgentReset: { ko: "• `!agent reset` — 기본 에이전트 복원", en: "• `!agent reset` — restore default agent" },
+  helpDir: { ko: "• `!dir` — 현재 워크스페이스 확인", en: "• `!dir` — show current workspace" },
+  helpDirSet: { ko: "• `!dir /path/to/project` — 워크스페이스 변경", en: "• `!dir /path/to/project` — change workspace" },
+  helpAttachSes: { ko: "• `!attach ses_xxx` — 기존 세션 연결 (URL 붙여넣기 가능)", en: "• `!attach ses_xxx` — attach existing session (URL paste OK)" },
+  helpAttachBg: { ko: "• `!attach bg_xxx` — 백그라운드 작업 상태 attach", en: "• `!attach bg_xxx` — attach background task" },
+  helpSync: { ko: "• `!sync` — 클라이언트 메시지를 슬랙으로 동기화", en: "• `!sync` — sync client messages to Slack" },
+  helpReset: { ko: "• `!reset` — 현재 스레드 세션 리셋", en: "• `!reset` — reset this thread's session" },
+  helpHelp: { ko: "• `!help` — 이 도움말", en: "• `!help` — this help" },
+  slackStatusDesc: { ko: "Slack 에이전트 상태 확인", en: "Check Slack agent status" },
+  permRequest: { ko: "⚠️ *권한 요청*\n", en: "⚠️ *Permission request*\n" },
+  permPattern: { ko: "패턴: `{v}`\n", en: "Pattern: `{v}`\n" },
+  permOptions: { ko: "\n*1.* 허용 (이번만)\n*2.* 항상 허용\n*3.* 거부\n", en: "\n*1.* Allow (once)\n*2.* Always allow\n*3.* Deny\n" },
+  permHint: { ko: "_1/y/yes, 2/always, 3/n/no 로 답해주세요_", en: "_Reply with 1/y/yes, 2/always, 3/n/no_" },
+};
+
+function t(key: keyof typeof STR, vars?: Record<string, string | number>): string {
+  let s = STR[key][language];
+  if (vars) {
+    for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
+  }
+  return s;
+}
 let cachedBackgroundOutputPath: string | null = null;
 let seenInboundEventKeys: Map<string, number> = new Map();
 
@@ -200,7 +281,7 @@ async function handlePermissionReply(pending: PendingPermission, text: string, c
   else if (["3", "n", "no", "reject"].includes(trimmed)) reply = "reject";
 
   if (!reply) {
-    slackSend(channel, "_잘못된 응답. 1/y/yes, 2/always, 3/n/no 로 답해주세요._", threadTs);
+    slackSend(channel, t("invalidReply"), threadTs);
     return;
   }
 
@@ -210,12 +291,12 @@ async function handlePermissionReply(pending: PendingPermission, text: string, c
       body: { response: reply },
     });
     pendingPermissions.delete(pending.permissionId);
-    const label = reply === "reject" ? "거부" : `허용 (${reply})`;
-    slackSend(channel, `_권한 ${label}_`, threadTs);
+    const label = reply === "reject" ? t("permDeny") : `${t("permAllow")} (${reply})`;
+    slackSend(channel, t("permDone", { label }), threadTs);
     log(`permission ${pending.permissionId} replied: ${reply}`);
   } catch (e: any) {
     pendingPermissions.delete(pending.permissionId);
-    slackSend(channel, `_권한 응답 실패: ${e.message}_`, threadTs);
+    slackSend(channel, t("permReplyFailed", { msg: e.message }), threadTs);
     log(`permission reply error: ${e.message}`);
   }
 }
@@ -243,7 +324,7 @@ async function handleQuestionReply(pending: PendingQuestion, text: string, chann
     log(`question replied: ${text.slice(0, 50)}`);
   } catch (e: any) {
     pendingQuestions.delete(threadTs);
-    slackSend(channel, `_응답 전달 실패: ${e.message}_`, threadTs);
+    slackSend(channel, t("answerRelayFailed", { msg: e.message }), threadTs);
     log(`question reply error: ${e.message}`);
   }
 }
@@ -286,7 +367,7 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
         query: directory ? { directory } : undefined,
       });
       if (!session?.id) {
-        slackSend(channel, "❌ 세션 생성 실패", threadTs);
+        slackSend(channel, t("sessionCreateFailed"), threadTs);
         return;
       }
       sessionId = session.id;
@@ -343,7 +424,7 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
 
     if (!stream) {
       log("SSE stream not available, falling back to polling");
-      slackSend(channel, "❌ 이벤트 스트림 연결 실패", threadTs);
+      slackSend(channel, t("streamConnectFailed"), threadTs);
       sendIPC({ type: "slack_reaction_remove", channel, name: "peperun", timestamp: actualTs });
       return;
     }
@@ -387,7 +468,7 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
         && (lastDelayNotifiedAt === 0 || now - lastDelayNotifiedAt >= RESPONSE_STALL_NOTIFY_INTERVAL_MS);
       if (shouldNotify) {
         const stalledSec = Math.floor(stalledMs / 1000);
-        slackSend(channel, `⏳ 응답이 지연되고 있어요 (${stalledSec}초 경과). 계속 처리 중입니다.`, threadTs);
+        slackSend(channel, t("stalled", { sec: stalledSec }), threadTs);
         lastDelayNotifiedAt = now;
         log(`response stall detected: session=${sessionId} stalled=${stalledSec}s`);
       }
@@ -410,7 +491,7 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
             questionPosted = true;
             const input = part.state?.input || {};
             const questions = input.questions || [];
-            let msg = "❓ *질문*\n";
+            let msg = t("questionHeader");
             for (const q of questions) {
               msg += `\n*${q.header || ""}*\n${q.question}\n`;
               if (q.options?.length) {
@@ -419,7 +500,7 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
                 });
               }
             }
-            msg += "\n_번호 또는 텍스트로 답해주세요_";
+            msg += t("questionHint");
             slackSend(channel, msg, threadTs);
             pendingQuestions.set(threadTs, { sessionId, threadTs, channel, createdAt: Date.now() });
             log(`question forwarded to slack for thread ${threadTs}`);
@@ -455,7 +536,7 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
             for (const detectedId of detectedIds) {
               if (!backgroundTaskIDs.has(detectedId)) {
                 backgroundTaskIDs.add(detectedId);
-                slackSend(channel, `🧵 bg 작업 감지: \`${detectedId}\` (완료 시 결과를 자동 확인합니다)`, threadTs);
+                slackSend(channel, t("bgDetected", { id: detectedId }), threadTs);
                 log(`detected background task from stream: ${detectedId}`);
               }
             }
@@ -526,12 +607,12 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
       const autoAttachStartedAt = Date.now();
       if (backgroundTaskIDs.size > autoTaskIds.length) {
         const skipped = backgroundTaskIDs.size - autoTaskIds.length;
-        slackSend(channel, `ℹ️ 감지된 bg 작업이 많아 상위 ${autoTaskIds.length}개만 자동 확인합니다. (${skipped}개는 수동 attach 권장)`, threadTs);
+        slackSend(channel, t("bgTooMany", { n: autoTaskIds.length, skipped }), threadTs);
       }
       for (const bgTaskID of autoTaskIds) {
         const remainingBudgetMs = AUTO_ATTACH_MAX_MONITOR_BUDGET_MS - (Date.now() - autoAttachStartedAt);
         if (remainingBudgetMs <= 0) {
-          slackSend(channel, "⏱️ 자동 bg 확인 예산(2분)을 초과하여 추가 작업은 건너뜁니다. 필요 시 `!attach bg_xxx`로 확인하세요.", threadTs);
+          slackSend(channel, t("bgBudgetExceeded"), threadTs);
           break;
         }
         const state = await handleAttachBackgroundTask(channel, bgTaskID, threadTs, {
@@ -557,7 +638,7 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
     log(`session ${sessionId} completed`);
   } catch (e: any) {
     log(`error: ${e.message}`);
-    slackSend(channel, `❌ 오류: ${e.message}`, ts);
+      slackSend(channel, t("errPrefix", { msg: e.message }), ts);
   }
 }
 
@@ -626,8 +707,8 @@ function resolveAttachTimeoutMs(optionTimeoutSec: unknown): number {
 
 function timeoutLabel(ms: number): string {
   const sec = Math.max(1, Math.round(ms / 1000));
-  if (sec % 60 === 0) return `${sec / 60}분`;
-  return `${sec}초`;
+  if (sec % 60 === 0) return t("minLabel", { n: sec / 60 });
+  return t("secLabel", { n: sec });
 }
 
 function collectBackgroundTaskIds(value: unknown, found: Set<string>) {
@@ -927,7 +1008,7 @@ async function handleAttachBackgroundTask(
   const renderPayloadOnComplete = options.renderPayloadOnComplete !== false;
   const effectiveTimeoutMs = Math.max(1_000, Math.min(attachBgTimeoutMs, options.maxWaitMs ?? attachBgTimeoutMs));
   if (announceStart) {
-    slackSend(channel, `🔗 bg 작업 attach: \`${bgTaskID}\`\n완료까지 상태를 확인합니다.`, ts);
+      slackSend(channel, t("bgAttach", { id: bgTaskID }), ts);
   }
   const startedAt = Date.now();
 
@@ -939,7 +1020,7 @@ async function handleAttachBackgroundTask(
     const probe = await callBackgroundOutput(bgTaskID, requestTimeoutMs);
     if (!probe.ok) {
       if (probe.unsupported) {
-        slackSend(channel, "❌ 현재 OpenCode 서버에서 background output API를 찾을 수 없습니다.", ts);
+        slackSend(channel, t("bgApiMissing"), ts);
         return "unsupported";
       }
       if (probe.retryable) {
@@ -951,37 +1032,37 @@ async function handleAttachBackgroundTask(
         continue;
       }
       if (probe.statusCode === 401 || probe.statusCode === 403) {
-        slackSend(channel, `❌ bg 작업 접근 권한이 없습니다: \`${bgTaskID}\``, ts);
+        slackSend(channel, t("bgNoAccess", { id: bgTaskID }), ts);
         return "access_denied";
       }
       if (probe.statusCode === 404) {
-        slackSend(channel, `❌ bg 작업을 찾을 수 없습니다: \`${bgTaskID}\``, ts);
+        slackSend(channel, t("bgNotFound", { id: bgTaskID }), ts);
         return "not_found";
       }
       const errMessage = probe.error ? stringifyLimited(probe.error, 500) : "unknown error";
-      slackSend(channel, `❌ bg 조회 오류: ${errMessage}`, ts);
+        slackSend(channel, t("bgLookupError", { msg: errMessage }), ts);
       return "error";
     }
 
     const state = deriveBackgroundState(probe.payload);
     if (state === "completed") {
       if (renderPayloadOnComplete) {
-        sendLongText(channel, `✅ bg 작업 완료: \`${bgTaskID}\`\n${stringifyLimited(probe.payload)}`, ts);
+        sendLongText(channel, `${t("bgDone", { id: bgTaskID })}\n${stringifyLimited(probe.payload)}`, ts);
       } else {
-        slackSend(channel, `✅ bg 작업 완료: \`${bgTaskID}\``, ts);
+        slackSend(channel, t("bgDone", { id: bgTaskID }), ts);
       }
       return "completed";
     }
     if (state === "error") {
-      sendLongText(channel, `❌ bg 작업 실패: \`${bgTaskID}\`\n${stringifyLimited(probe.payload)}`, ts);
+      sendLongText(channel, `${t("bgFailed", { id: bgTaskID })}\n${stringifyLimited(probe.payload)}`, ts);
       return "error";
     }
     if (state === "cancelled") {
-      slackSend(channel, `🚫 bg 작업이 취소되었습니다: \`${bgTaskID}\``, ts);
+      slackSend(channel, t("bgCancelled", { id: bgTaskID }), ts);
       return "cancelled";
     }
     if (state === "not_found") {
-      slackSend(channel, `❌ bg 작업을 찾을 수 없습니다: \`${bgTaskID}\``, ts);
+      slackSend(channel, t("bgNotFound", { id: bgTaskID }), ts);
       return "not_found";
     }
 
@@ -992,7 +1073,7 @@ async function handleAttachBackgroundTask(
   }
 
   log(`attach bg timeout without terminal state: ${bgTaskID}`);
-  slackSend(channel, `⏱️ bg 작업 대기 시간 초과 (${timeoutLabel(effectiveTimeoutMs)}): \`${bgTaskID}\`\n다시 \`!attach ${bgTaskID}\`로 이어서 확인할 수 있습니다.`, ts);
+      slackSend(channel, t("bgTimeout", { t: timeoutLabel(effectiveTimeoutMs), id: bgTaskID }), ts);
   return "timeout";
 }
 
@@ -1007,7 +1088,7 @@ async function handleCommand(channel: string, text: string, ts: string): Promise
       const current = modelOverride
         ? `${modelOverride.providerID}/${modelOverride.modelID}`
         : "(default)";
-      const lines = [`*현재 모델:* \`${current}\``, "", "*사용 가능:*"];
+      const lines = [t("currentModel", { v: current }), "", t("available")];
       try {
         const { data: config } = await pluginClient.config.get();
         if (config?.provider) {
@@ -1018,22 +1099,22 @@ async function handleCommand(channel: string, text: string, ts: string): Promise
           }
         }
       } catch {
-        lines.push("_(모델 목록을 가져올 수 없습니다)_");
+        lines.push(t("modelListFailed"));
       }
       slackSend(channel, lines.join("\n"), ts);
       return true;
     }
     if (arg === "reset" || arg === "default") {
       modelOverride = null;
-      slackSend(channel, "✅ 기본 모델로 복원", ts);
+      slackSend(channel, t("modelRestored"), ts);
       return true;
     }
     const match = arg.match(/^([^/]+)\/(.+)$/);
     if (match) {
       modelOverride = { providerID: match[1], modelID: match[2] };
-      slackSend(channel, `✅ 모델 변경: \`${arg}\``, ts);
+      slackSend(channel, t("modelChanged", { v: arg }), ts);
     } else {
-      slackSend(channel, `❌ 형식: \`!model provider/model\` (예: \`!model kiro/claude-sonnet-4-6\`)`, ts);
+      slackSend(channel, t("modelUsage"), ts);
     }
     return true;
   }
@@ -1041,31 +1122,31 @@ async function handleCommand(channel: string, text: string, ts: string): Promise
   if (cmd === "!reset") {
     delete sessions[ts];
     saveSessions();
-    slackSend(channel, "✅ 세션 리셋됨. 다음 메시지부터 새 세션.", ts);
+    slackSend(channel, t("sessionReset"), ts);
     return true;
   }
 
   if (cmd === "!agent") {
     const arg = parts.slice(1).join(" ").trim();
     if (!arg) {
-      slackSend(channel, `*현재 에이전트:* \`${agentOverride || "(default)"}\``, ts);
+      slackSend(channel, t("currentAgent", { v: agentOverride || t("defaultLabel") }), ts);
       return true;
     }
     if (arg === "reset" || arg === "default") {
       agentOverride = null;
-      slackSend(channel, "✅ 기본 에이전트로 복원", ts);
+      slackSend(channel, t("agentRestored"), ts);
       return true;
     }
     agentOverride = arg;
-    slackSend(channel, `✅ 에이전트 변경: \`${arg}\``, ts);
+    slackSend(channel, t("agentChanged", { v: arg }), ts);
     return true;
   }
 
   if (cmd === "!dir") {
     const arg = parts.slice(1).join(" ").trim();
     if (!arg) {
-      const currentDir = sessions[ts]?.directory || defaultDirectory || "(기본)";
-      slackSend(channel, `*현재 워크스페이스:* \`${currentDir}\``, ts);
+      const currentDir = sessions[ts]?.directory || defaultDirectory || t("noneLabel");
+      slackSend(channel, t("currentDir", { v: currentDir }), ts);
       return true;
     }
     const resolvedDir = expandTilde(arg);
@@ -1075,21 +1156,21 @@ async function handleCommand(channel: string, text: string, ts: string): Promise
       sessions[ts].directory = resolvedDir;
     }
     saveSessions();
-    slackSend(channel, `✅ 워크스페이스 변경: \`${resolvedDir}\`\n다음 메시지부터 이 디렉토리에서 세션 생성.`, ts);
+    slackSend(channel, t("dirChanged", { v: resolvedDir }), ts);
     return true;
   }
 
   if (cmd === "!attach") {
     const arg = parts.slice(1).join(" ").trim();
     if (!arg) {
-      const currentSession = sessions[ts]?.sessionId || "(없음)";
-      slackSend(channel, `*현재 세션:* \`${currentSession}\``, ts);
+      const currentSession = sessions[ts]?.sessionId || t("noneLabel");
+      slackSend(channel, t("currentSession", { v: currentSession }), ts);
       return true;
     }
 
     if (arg.startsWith("bg_")) {
       if (!BG_TASK_ID_PATTERN.test(arg)) {
-        slackSend(channel, "❌ 형식: `!attach bg_xxx` (영문/숫자/`_`/`-`만 허용)", ts);
+        slackSend(channel, t("attachBgUsage"), ts);
         return true;
       }
       await handleAttachBackgroundTask(channel, arg, ts);
@@ -1102,18 +1183,18 @@ async function handleCommand(channel: string, text: string, ts: string): Promise
       sessionId = urlMatch[1];
     }
     if (!sessionId.startsWith("ses_")) {
-      slackSend(channel, `❌ 형식: \`!attach ses_xxx\` 또는 OpenCode URL 붙여넣기`, ts);
+      slackSend(channel, t("attachSesUsage"), ts);
       return true;
     }
     saveSession(ts, sessionId, channel, sessions[ts]?.directory);
-    slackSend(channel, `✅ 세션 연결: \`${sessionId}\`\n이 스레드의 메시지가 해당 세션으로 전달됩니다.`, ts);
+    slackSend(channel, t("sessionAttached", { v: sessionId }), ts);
     return true;
   }
 
   if (cmd === "!sync") {
     const session = sessions[ts];
     if (!session?.sessionId) {
-      slackSend(channel, "❌ 이 스레드에 연결된 세션이 없습니다.", ts);
+      slackSend(channel, t("noThreadSession"), ts);
       return true;
     }
     try {
@@ -1121,7 +1202,7 @@ async function handleCommand(channel: string, text: string, ts: string): Promise
         path: { id: session.sessionId },
       });
       if (!Array.isArray(messages) || messages.length === 0) {
-        slackSend(channel, "ℹ️ 세션에 메시지가 없습니다.", ts);
+        slackSend(channel, t("noSessionMessages"), ts);
         return true;
       }
 
@@ -1137,7 +1218,7 @@ async function handleCommand(channel: string, text: string, ts: string): Promise
       ).sort((a: any, b: any) => (a.info?.time?.created || 0) - (b.info?.time?.created || 0));
 
       if (unsyncedMessages.length === 0) {
-        slackSend(channel, "✅ 동기화할 새 메시지가 없습니다.", ts);
+        slackSend(channel, t("nothingToSync"), ts);
         return true;
       }
 
@@ -1168,30 +1249,30 @@ async function handleCommand(channel: string, text: string, ts: string): Promise
         const parts = (m.parts as any[]).filter((p: any) => p.type === "text" && p.text);
         return parts.length > 0;
       }).length;
-      slackSend(channel, `✅ ${syncedCount}개 메시지 동기화 완료.`, ts);
+      slackSend(channel, t("syncedCount", { n: syncedCount }), ts);
     } catch (err: any) {
       log(`!sync error: ${err.message}`);
-      slackSend(channel, `❌ 동기화 오류: ${err.message}`, ts);
+      slackSend(channel, t("syncError", { msg: err.message }), ts);
     }
     return true;
   }
 
   if (cmd === "!help") {
     const help = [
-      "*사용 가능한 명령:*",
-      "• `!model` — 현재 모델 확인 / 변경",
-      "• `!model provider/model` — 모델 변경",
-      "• `!model reset` — 기본 모델 복원",
-      "• `!agent` — 현재 에이전트 확인",
-      "• `!agent build` — 에이전트 변경 (build, plan 등)",
-      "• `!agent reset` — 기본 에이전트 복원",
-      "• `!dir` — 현재 워크스페이스 확인",
-      "• `!dir /path/to/project` — 워크스페이스 변경",
-      "• `!attach ses_xxx` — 기존 세션 연결 (URL 붙여넣기 가능)",
-      "• `!attach bg_xxx` — 백그라운드 작업 상태 attach",
-      "• `!sync` — 클라이언트 메시지를 슬랙으로 동기화",
-      "• `!reset` — 현재 스레드 세션 리셋",
-      "• `!help` — 이 도움말",
+      t("helpTitle"),
+      t("helpModel"),
+      t("helpModelSet"),
+      t("helpModelReset"),
+      t("helpAgent"),
+      t("helpAgentSet"),
+      t("helpAgentReset"),
+      t("helpDir"),
+      t("helpDirSet"),
+      t("helpAttachSes"),
+      t("helpAttachBg"),
+      t("helpSync"),
+      t("helpReset"),
+      t("helpHelp"),
     ];
     slackSend(channel, help.join("\n"), ts);
     return true;
@@ -1311,7 +1392,7 @@ function stopWorker() {
 }
 
 const slackStatusTool = tool({
-  description: "Slack 에이전트 상태 확인",
+  description: "Check Slack agent status / Slack 에이전트 상태 확인",
   args: {},
   async execute() {
     const status = worker && !worker.killed ? "running" : "stopped";
@@ -1349,6 +1430,9 @@ const pluginModule: PluginModule = {
     agentOverride = (options?.DEFAULT_AGENT as string) || process.env.SLACK_DEFAULT_AGENT || null;
     if (agentOverride) log(`default agent: ${agentOverride}`);
     attachBgTimeoutMs = resolveAttachTimeoutMs(options?.ATTACH_TIMEOUT_SEC);
+    const languageOpt = ((options?.LANGUAGE as string) || process.env.SLACK_LANGUAGE || "ko").toLowerCase();
+    language = languageOpt === "en" ? "en" : "ko";
+    log(`language: ${language}`);
     log(`attach timeout set to ${attachBgTimeoutMs}ms`);
     sessionsPath = join(input.directory, "slack-sessions.json");
     loadSessions();
@@ -1396,14 +1480,14 @@ const pluginModule: PluginModule = {
           createdAt: Date.now(),
         });
 
-        let msg = "⚠️ *권한 요청*\n";
+        let msg = t("permRequest");
         msg += `\`${input.title}\`\n`;
         if (input.pattern) {
           const patterns = Array.isArray(input.pattern) ? input.pattern.join(", ") : input.pattern;
-          msg += `패턴: \`${patterns}\`\n`;
+          msg += t("permPattern", { v: patterns });
         }
-        msg += "\n*1.* 허용 (이번만)\n*2.* 항상 허용\n*3.* 거부\n";
-        msg += "_1/y/yes, 2/always, 3/n/no 로 답해주세요_";
+        msg += t("permOptions");
+        msg += t("permHint");
 
         slackSend(session.channel, msg, threadTs);
         log(`permission.ask forwarded to slack: ${input.id} (${input.title})`);
