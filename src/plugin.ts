@@ -1,10 +1,12 @@
 import type { PluginModule, PluginInput, PluginOptions } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin";
+import { Plugin as PluginV2 } from "@opencode/plugin";
 import { spawn, type ChildProcess } from "child_process";
 import { appendFileSync, readFileSync, writeFileSync, existsSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { homedir } from "os";
+import { mapSessionMessageToLegacyShape } from "./v2-adapter";
 
 const LOG_FILE = "/tmp/slack-agent-plugin.log";
 const SLACK_MSG_LIMIT = 3900;
@@ -48,6 +50,45 @@ type PendingQuestion = {
   createdAt: number;
 };
 let pendingQuestions: Map<string, PendingQuestion> = new Map();
+
+/**
+ * A `requestID`/`permissionID` plus the decision a Slack reply resolved it to.
+ * V1 and V2 use the same three-way decision; only the wire shape differs.
+ */
+type PermissionDecision = "once" | "always" | "reject";
+
+/**
+ * One normalized event from an in-progress agent turn. V1 and V2 expose turn
+ * progress through unrelated APIs (a flat SSE "message.part.updated" stream vs.
+ * granular session.tool.X / session.reasoning.X lifecycle events plus a
+ * permission.asked event). Each backend's `subscribeTurnEvents` translates its
+ * own wire shape into this common shape so `handleMessage` has one code path.
+ */
+type TurnEvent =
+  | { kind: "tool-call"; id: string; name: string; status: "running" | "completed" | "error" | string; input?: unknown; output?: unknown }
+  | { kind: "reasoning"; id: string; text: string }
+  | { kind: "permission-asked"; requestID: string; action: string; resources: string[] }
+  | { kind: "idle" }
+  | { kind: "other" };
+
+/**
+ * Everything `handleMessage`, `syncAssistantMessagesSinceCursor`, and
+ * `handleCommand` need from the OpenCode server. `createV1Backend` wraps the
+ * V1 `PluginInput["client"]` SDK; `createV2Backend` wraps a V2 `setup(ctx)`
+ * context. Neither implementation duplicates the other's business logic —
+ * only the wire-level translation lives here.
+ */
+interface SlackAgentBackend {
+  createSession(input: { title: string; directory?: string }): Promise<{ id: string } | null>;
+  getMessages(sessionID: string): Promise<any[]>;
+  sendPrompt(sessionID: string, input: { text: string; model?: { providerID: string; modelID: string } | null; agent?: string | null }): Promise<void>;
+  subscribeTurnEvents(sessionID: string, signal: AbortSignal): AsyncIterable<TurnEvent>;
+  replyPermission(sessionID: string, requestID: string, decision: PermissionDecision): Promise<void>;
+  /** `"provider/model"` strings for the `!model` command's listing. */
+  listModels(): Promise<string[]>;
+}
+
+let backend: SlackAgentBackend | null = null;
 
 function expandTilde(p: string): string {
   if (p === "~") return homedir();
@@ -192,7 +233,7 @@ function findPendingPermissionForThread(threadTs: string): PendingPermission | n
 }
 
 async function handlePermissionReply(pending: PendingPermission, text: string, channel: string, threadTs: string) {
-  if (!pluginClient) return;
+  if (!backend) return;
   const trimmed = text.trim().toLowerCase();
   let reply: "once" | "always" | "reject" | null = null;
   if (["1", "y", "yes", "once"].includes(trimmed)) reply = "once";
@@ -205,10 +246,7 @@ async function handlePermissionReply(pending: PendingPermission, text: string, c
   }
 
   try {
-    await pluginClient.postSessionIdPermissionsPermissionId({
-      path: { id: pending.sessionId, permissionID: pending.permissionId },
-      body: { response: reply },
-    });
+    await backend.replyPermission(pending.sessionId, pending.permissionId, reply);
     pendingPermissions.delete(pending.permissionId);
     const label = reply === "reject" ? "거부" : `허용 (${reply})`;
     slackSend(channel, `_권한 ${label}_`, threadTs);
@@ -234,22 +272,34 @@ function findPendingQuestionForThread(threadTs: string): PendingQuestion | null 
 }
 
 async function handleQuestionReply(pending: PendingQuestion, text: string, channel: string, threadTs: string) {
-  if (!pluginClient) return;
-  try {
-    await pluginClient.tui.control.response({
-      body: text.trim(),
-    });
-    pendingQuestions.delete(threadTs);
-    log(`question replied: ${text.slice(0, 50)}`);
-  } catch (e: any) {
-    pendingQuestions.delete(threadTs);
-    slackSend(channel, `_응답 전달 실패: ${e.message}_`, threadTs);
-    log(`question reply error: ${e.message}`);
+  if (pluginClient) {
+    try {
+      await pluginClient.tui.control.response({
+        body: text.trim(),
+      });
+      pendingQuestions.delete(threadTs);
+      log(`question replied: ${text.slice(0, 50)}`);
+    } catch (e: any) {
+      pendingQuestions.delete(threadTs);
+      slackSend(channel, `_응답 전달 실패: ${e.message}_`, threadTs);
+      log(`question reply error: ${e.message}`);
+    }
+    return;
   }
+  // OpenCode V2 has no plugin-reachable way to answer the `question` tool
+  // (no ctx.session.form.* in the plugin context). Degrade clearly instead of
+  // silently dropping the reply. See createV2Backend's doc comment.
+  pendingQuestions.delete(threadTs);
+  slackSend(
+    channel,
+    "_⚠️ 이 OpenCode 버전(V2)에서는 Slack에서 질문에 답할 수 없습니다. OpenCode 세션에서 직접 답해주세요._",
+    threadTs,
+  );
+  log("question reply unsupported on V2 backend");
 }
 
 async function handleMessage(channel: string, text: string, ts: string, messageTs?: string, isAllowed: boolean = true) {
-  if (!pluginClient) return;
+  if (!backend) return;
   const actualTs = messageTs || ts;
   log(`[HANDLE-MSG] channel=${channel} ts=${ts} messageTs=${messageTs} text="${text.slice(0, 60)}" isAllowed=${isAllowed}`);
 
@@ -281,10 +331,7 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
 
     if (!sessionId) {
       const directory = sessions[threadTs]?.directory || defaultDirectory;
-      const { data: session } = await pluginClient.session.create({
-        body: { title: `Slack: ${text.slice(0, 50)}` },
-        query: directory ? { directory } : undefined,
-      });
+      const session = await backend.createSession({ title: `Slack: ${text.slice(0, 50)}`, directory });
       if (!session?.id) {
         slackSend(channel, "❌ 세션 생성 실패", threadTs);
         return;
@@ -296,9 +343,7 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
       log(`existing session: ${sessionId} for thread ${threadTs}`);
       if (!syncCursor) {
         try {
-          const { data: preMessages } = await pluginClient.session.messages({
-            path: { id: sessionId },
-          });
+          const preMessages = await backend.getMessages(sessionId);
           if (Array.isArray(preMessages) && preMessages.length > 0) {
             syncCursor = getMsgId(preMessages[preMessages.length - 1]);
             log(`pre-prompt cursor fallback: ${syncCursor} (${preMessages.length} messages)`);
@@ -319,43 +364,25 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
       promptText = agentMatch[2].trim();
     }
 
-    const promptBody: any = {
-      parts: [{ type: "text" as const, text: promptText }],
-    };
-    if (modelOverride) promptBody.model = modelOverride;
-    if (promptAgent) promptBody.agent = promptAgent;
-
-    await pluginClient.session.promptAsync({
-      path: { id: sessionId },
-      body: promptBody,
-    });
+    await backend.sendPrompt(sessionId, { text: promptText, model: modelOverride, agent: promptAgent });
     log("prompt sent");
 
     let questionPosted = false;
     const seenParts = new Set<string>();
     const backgroundTaskIDs = new Set<string>();
 
-    log(`[SSE-SUBSCRIBE] calling pluginClient.event.subscribe() for session=${sessionId} thread=${threadTs}`);
-    const subscribeStart = Date.now();
-    const eventResult = await pluginClient.event.subscribe();
-    log(`[SSE-SUBSCRIBE] returned in ${Date.now() - subscribeStart}ms, hasStream=${!!eventResult?.stream}`);
-    const stream = eventResult?.stream;
-
-    if (!stream) {
-      log("SSE stream not available, falling back to polling");
-      slackSend(channel, "❌ 이벤트 스트림 연결 실패", threadTs);
-      sendIPC({ type: "slack_reaction_remove", channel, name: "peperun", timestamp: actualTs });
-      return;
-    }
-
     let streamDone = false;
     let lastStreamActivityAt = Date.now();
     let lastDelayNotifiedAt = 0;
 
+    const turnController = new AbortController();
+    log(`[SSE-SUBSCRIBE] subscribing to turn events for session=${sessionId} thread=${threadTs}`);
+    const turnEvents = backend.subscribeTurnEvents(sessionId, turnController.signal);
+
     const timeout = setTimeout(() => {
       log("SSE timeout (6min)");
       streamDone = true;
-      stream.return(undefined);
+      turnController.abort();
     }, 6 * 60 * 1000);
 
     const idleCheckStart = Date.now();
@@ -363,9 +390,7 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
       if (streamDone) { clearInterval(idleCheck); return; }
       if (Date.now() - idleCheckStart < 2000) return;
       try {
-        const { data: messages } = await pluginClient!.session.messages({
-          path: { id: sessionId },
-        });
+        const messages = await backend!.getMessages(sessionId);
         if (Array.isArray(messages)) {
           const lastAssistant = [...messages].reverse().find(
             (m: any) => m.info?.role === "assistant"
@@ -373,7 +398,7 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
           if (lastAssistant?.info?.time?.completed) {
             log(`session ${sessionId} idle via poll fallback`);
             streamDone = true;
-            stream.return(undefined);
+            turnController.abort();
           }
         }
       } catch {}
@@ -394,21 +419,14 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
     }, 5000);
 
     try {
-      for await (const event of stream) {
+      for await (const evt of turnEvents) {
         if (streamDone) break;
-        if (!event || !(event as any).type) continue;
-        const evt = event as any;
+        lastStreamActivityAt = Date.now();
 
-        if (evt.type === "message.part.updated") {
-          const part = evt.properties?.part;
-          if (!part || part.sessionID !== sessionId) continue;
-          lastStreamActivityAt = Date.now();
-
-          const partKey = `${part.type}:${part.id}`;
-
-          if (part.type === "tool" && part.tool === "question" && part.state?.status === "running" && !questionPosted) {
+        if (evt.kind === "tool-call") {
+          if (evt.name === "question" && evt.status === "running" && !questionPosted) {
             questionPosted = true;
-            const input = part.state?.input || {};
+            const input = (evt.input as any) || {};
             const questions = input.questions || [];
             let msg = "❓ *질문*\n";
             for (const q of questions) {
@@ -428,30 +446,29 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
             return;
           }
 
-          if (part.type === "tool" && part.tool !== "question" && part.state?.status === "running") {
-            if (!seenParts.has(partKey)) {
-              seenParts.add(partKey);
-              const title = part.state?.title || "";
-              const toolName = part.tool || "";
-              const input = part.state?.input || {};
-              let detail = title || toolName;
-              if (!title && input) {
-                const params = Object.entries(input)
-                  .filter(([k, v]) => v && typeof v === "string" && (v as string).length < 100)
-                  .map(([k, v]) => `${k}=${v}`)
-                  .slice(0, 2)
-                  .join(" ");
-                if (params) detail = `${toolName} ${params}`;
-              }
-              if (detail) {
-                slackSend(channel, `🔧 _${detail}_`, threadTs);
-                log(`stream: 🔧 _${detail}_`);
-              }
+          if (evt.name !== "question" && evt.status === "running" && !seenParts.has(evt.id)) {
+            seenParts.add(evt.id);
+            const toolName = evt.name || "";
+            const input = (evt.input as any) || {};
+            let detail = toolName;
+            if (input) {
+              const params = Object.entries(input)
+                .filter(([, v]) => v && typeof v === "string" && (v as string).length < 100)
+                .map(([k, v]) => `${k}=${v}`)
+                .slice(0, 2)
+                .join(" ");
+              if (params) detail = `${toolName} ${params}`;
+            }
+            if (detail) {
+              slackSend(channel, `🔧 _${detail}_`, threadTs);
+              log(`stream: 🔧 _${detail}_`);
             }
           }
 
-          if (part.type === "tool" && part.tool !== "question") {
-            const detectedIds = extractBackgroundTaskIdsFromPart(part);
+          if (evt.name !== "question") {
+            const detectedIds = new Set<string>();
+            collectBackgroundTaskIds(evt.input, detectedIds);
+            collectBackgroundTaskIds(evt.output, detectedIds);
             for (const detectedId of detectedIds) {
               if (!backgroundTaskIDs.has(detectedId)) {
                 backgroundTaskIDs.add(detectedId);
@@ -460,46 +477,50 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
               }
             }
           }
+          continue;
+        }
 
-          if (part.type === "reasoning" && part.text && !seenParts.has(partKey)) {
-            seenParts.add(partKey);
-            const snippet = part.text.length > 200 ? part.text.slice(0, 200) + "…" : part.text;
+        if (evt.kind === "reasoning") {
+          if (!seenParts.has(evt.id)) {
+            seenParts.add(evt.id);
+            const snippet = evt.text.length > 200 ? evt.text.slice(0, 200) + "…" : evt.text;
             slackSend(channel, `💭 ${snippet}`, threadTs);
             log(`stream: 💭`);
           }
+          continue;
         }
 
-        if (evt.type === "session.idle" && evt.properties?.sessionID === sessionId) {
-          lastStreamActivityAt = Date.now();
-          log(`session ${sessionId} idle via SSE`);
+        if (evt.kind === "permission-asked") {
+          pendingPermissions.set(evt.requestID, {
+            permissionId: evt.requestID,
+            sessionId,
+            threadTs,
+            channel,
+            createdAt: Date.now(),
+          });
+          let msg = "⚠️ *권한 요청*\n";
+          msg += `\`${evt.action}\`\n`;
+          if (evt.resources.length) {
+            msg += `리소스: \`${evt.resources.join(", ")}\`\n`;
+          }
+          msg += "\n*1.* 허용 (이번만)\n*2.* 항상 허용\n*3.* 거부\n";
+          msg += "_1/y/yes, 2/always, 3/n/no 로 답해주세요_";
+          slackSend(channel, msg, threadTs);
+          log(`permission.asked forwarded to slack: ${evt.requestID} (${evt.action})`);
+          continue;
+        }
+
+        if (evt.kind === "idle") {
+          log(`session ${sessionId} idle via turn events`);
           streamDone = true;
           break;
-        }
-
-        if (evt.type === "todo.updated" && evt.properties?.sessionID === sessionId) {
-          lastStreamActivityAt = Date.now();
-          const todos = evt.properties.todos || [];
-          if (todos.length > 0) {
-            let msg = "📋 *Plan*\n";
-            for (const t of todos) {
-              const icon = t.status === "completed" ? "✅" : t.status === "in_progress" ? "🔄" : "⬜";
-              msg += `${icon} ${t.content}\n`;
-            }
-            slackSend(channel, msg, threadTs);
-            log(`stream: todo.updated (${todos.length} items)`);
-          }
-        }
-
-        if (!["message.part.updated", "session.idle", "session.status", "todo.updated"].includes(evt.type)) {
-          if (evt.properties?.sessionID === sessionId || !evt.properties?.sessionID) {
-            log(`SSE event: ${evt.type} ${JSON.stringify(evt.properties || {}).slice(0, 100)}`);
-          }
         }
       }
     } catch (streamErr: any) {
       log(`SSE error: ${streamErr.message}`);
     } finally {
       streamDone = true;
+      turnController.abort();
       clearTimeout(timeout);
       clearInterval(idleCheck);
       clearInterval(delayCheck);
@@ -653,15 +674,6 @@ function collectBackgroundTaskIds(value: unknown, found: Set<string>) {
       collectBackgroundTaskIds(v, found);
     }
   }
-}
-
-function extractBackgroundTaskIdsFromPart(part: any): string[] {
-  const found = new Set<string>();
-  collectBackgroundTaskIds(part?.state?.input, found);
-  collectBackgroundTaskIds(part?.state?.output, found);
-  collectBackgroundTaskIds(part?.state?.result, found);
-  collectBackgroundTaskIds(part?.metadata, found);
-  return [...found];
 }
 
 function normalizeBackgroundStateToken(token: string): "running" | "completed" | "error" | "cancelled" | "not_found" | "unknown" {
@@ -876,11 +888,9 @@ async function syncAssistantMessagesSinceCursor(
   threadTs: string,
   cursorId?: string,
 ): Promise<string | undefined> {
-  if (!pluginClient) return cursorId;
+  if (!backend) return cursorId;
 
-  const { data: messages } = await pluginClient.session.messages({
-    path: { id: sessionId },
-  });
+  const messages = await backend.getMessages(sessionId);
   if (!Array.isArray(messages) || messages.length === 0) return cursorId;
 
   log(`[SYNC-MESSAGES] total=${messages.length} cursorId=${cursorId} firstId=${getMsgId(messages[0])} lastId=${getMsgId(messages[messages.length - 1])}`);
@@ -997,7 +1007,7 @@ async function handleAttachBackgroundTask(
 }
 
 async function handleCommand(channel: string, text: string, ts: string): Promise<boolean> {
-  if (!pluginClient) return false;
+  if (!backend) return false;
   const parts = text.trim().split(/\s+/);
   const cmd = parts[0].toLowerCase();
 
@@ -1009,13 +1019,9 @@ async function handleCommand(channel: string, text: string, ts: string): Promise
         : "(default)";
       const lines = [`*현재 모델:* \`${current}\``, "", "*사용 가능:*"];
       try {
-        const { data: config } = await pluginClient.config.get();
-        if (config?.provider) {
-          for (const [provId, prov] of Object.entries(config.provider as Record<string, any>)) {
-            for (const modelId of Object.keys(prov.models || {})) {
-              lines.push(`• \`${provId}/${modelId}\``);
-            }
-          }
+        const models = await backend.listModels();
+        for (const model of models) {
+          lines.push(`• \`${model}\``);
         }
       } catch {
         lines.push("_(모델 목록을 가져올 수 없습니다)_");
@@ -1117,9 +1123,7 @@ async function handleCommand(channel: string, text: string, ts: string): Promise
       return true;
     }
     try {
-      const { data: messages } = await pluginClient.session.messages({
-        path: { id: session.sessionId },
-      });
+      const messages = await backend.getMessages(session.sessionId);
       if (!Array.isArray(messages) || messages.length === 0) {
         slackSend(channel, "ℹ️ 세션에 메시지가 없습니다.", ts);
         return true;
@@ -1320,106 +1324,367 @@ const slackStatusTool = tool({
   },
 });
 
+/**
+ * Debug tool: runs `handleMessage` against the active backend (V1 REST client
+ * or V2 ctx) without a Slack connection. `sendIPC` becomes a no-op when the
+ * Socket Mode worker isn't connected, so this exercises session creation,
+ * prompting, and turn-event handling end to end while only logging what would
+ * have gone to Slack, to `/tmp/slack-agent-plugin.log`.
+ */
+async function runDebugTestPrompt(text: string): Promise<string> {
+  if (!backend) return "disabled (no backend)";
+  const threadTs = `debug-${Date.now()}`;
+  await handleMessage("debug-channel", text, threadTs, threadTs, true);
+  return `dispatched; see ${LOG_FILE}`;
+}
+
+const slackTestPromptTool = tool({
+  description: "디버그: Slack 없이 메시지 처리 테스트 (세션 생성/프롬프트/이벤트 스트림 확인용)",
+  args: { text: tool.schema.string() },
+  async execute(args) {
+    const output = await runDebugTestPrompt(args.text);
+    return { output };
+  },
+});
+
+/**
+ * Wraps the V1 `PluginInput["client"]` SDK (the raw REST client OpenCode's V1
+ * host injects as `input.client`). V1 forwards pending permissions through the
+ * global `permission.ask` hook rather than the event stream, so this backend's
+ * `subscribeTurnEvents` never yields a `permission-asked` event — the hook
+ * installed in `server()` below populates `pendingPermissions` directly.
+ */
+function createV1Backend(client: PluginInput["client"]): SlackAgentBackend {
+  return {
+    async createSession({ title, directory }) {
+      const { data: session } = await client.session.create({
+        body: { title },
+        query: directory ? { directory } : undefined,
+      });
+      return session?.id ? { id: session.id } : null;
+    },
+    async getMessages(sessionID) {
+      const { data: messages } = await client.session.messages({ path: { id: sessionID } });
+      return Array.isArray(messages) ? messages : [];
+    },
+    async sendPrompt(sessionID, { text, model, agent }) {
+      const body: any = { parts: [{ type: "text" as const, text }] };
+      if (model) body.model = model;
+      if (agent) body.agent = agent;
+      await client.session.promptAsync({ path: { id: sessionID }, body });
+    },
+    async *subscribeTurnEvents(sessionID, signal) {
+      const eventResult = await client.event.subscribe();
+      const stream = eventResult?.stream;
+      if (!stream) return;
+      const onAbort = () => {
+        try { stream.return?.(undefined); } catch {}
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
+      try {
+        for await (const event of stream) {
+          if (signal.aborted) break;
+          const evt = event as any;
+          if (!evt?.type) continue;
+
+          if (evt.type === "message.part.updated") {
+            const part = evt.properties?.part;
+            if (!part || part.sessionID !== sessionID) continue;
+            if (part.type === "tool") {
+              yield {
+                kind: "tool-call",
+                id: part.id,
+                name: part.tool || "",
+                status: part.state?.status,
+                input: part.state?.input,
+                output: part.state?.output ?? part.state?.result,
+              };
+              continue;
+            }
+            if (part.type === "reasoning" && part.text) {
+              yield { kind: "reasoning", id: part.id, text: part.text };
+              continue;
+            }
+            continue;
+          }
+
+          if (evt.type === "session.idle" && evt.properties?.sessionID === sessionID) {
+            yield { kind: "idle" };
+            continue;
+          }
+        }
+      } finally {
+        signal.removeEventListener("abort", onAbort);
+      }
+    },
+    async replyPermission(sessionID, requestID, decision) {
+      await client.postSessionIdPermissionsPermissionId({
+        path: { id: sessionID, permissionID: requestID },
+        body: { response: decision },
+      });
+    },
+    async listModels() {
+      try {
+        const { data: config } = await client.config.get();
+        const lines: string[] = [];
+        if (config?.provider) {
+          for (const [provId, prov] of Object.entries(config.provider as Record<string, any>)) {
+            for (const modelId of Object.keys((prov as any).models || {})) {
+              lines.push(`${provId}/${modelId}`);
+            }
+          }
+        }
+        return lines;
+      } catch {
+        return [];
+      }
+    },
+  };
+}
+
+/**
+ * Wraps a V2 `setup(ctx)` context. The V2 REST/ctx API renamed or restructured
+ * every endpoint this plugin uses (see `src/v2-adapter.ts` for the message
+ * shape translation), and replaced the single V1 "message.part.updated" SSE
+ * event with granular `session.tool.*` / `session.reasoning.*` lifecycle
+ * events plus a dedicated `permission.asked` event — this backend assembles
+ * those into the same `TurnEvent`s `createV1Backend` produces.
+ *
+ * Known gap: V2 does not expose a plugin-reachable way to answer the agent's
+ * `question` tool (no `ctx.session.form.*` in the plugin context). Forwarding
+ * a question to Slack still works; forwarding the Slack reply back does not.
+ * `handleQuestionReply` degrades to a clear message instead of silently
+ * failing. See the PR description for details.
+ */
+function createV2Backend(ctx: PluginV2.Context): SlackAgentBackend {
+  return {
+    async createSession({ title, directory }) {
+      const session = await ctx.session.create({
+        title,
+        location: directory ? { directory } : undefined,
+      } as any);
+      return session?.id ? { id: session.id } : null;
+    },
+    async getMessages(sessionID) {
+      const messages = await ctx.session.context({ sessionID } as any);
+      return (messages as any[]).map((m) => mapSessionMessageToLegacyShape(m));
+    },
+    async sendPrompt(sessionID, { text, model, agent }) {
+      if (agent) {
+        try {
+          await ctx.session.switchAgent({ sessionID, agent } as any);
+        } catch (err: any) {
+          log(`v2 switchAgent failed: ${err?.message || err}`);
+        }
+      }
+      if (model) {
+        try {
+          await ctx.session.switchModel({ sessionID, model: { providerID: model.providerID, id: model.modelID } } as any);
+        } catch (err: any) {
+          log(`v2 switchModel failed: ${err?.message || err}`);
+        }
+      }
+      await ctx.session.prompt({ sessionID, text } as any);
+    },
+    async *subscribeTurnEvents(sessionID, signal) {
+      const toolNames = new Map<string, string>();
+      let reasoningBuffer = "";
+      let reasoningActive = false;
+      let reasoningOrdinal = 0;
+
+      for await (const event of ctx.event.subscribe({ signal } as any)) {
+        const evt = event as any;
+        const data = evt?.data;
+        if (!evt?.type || !data) continue;
+
+        if (evt.type === "session.tool.input.started" && data.sessionID === sessionID) {
+          toolNames.set(data.id, data.name);
+          continue;
+        }
+
+        if (evt.type === "session.tool.called" && data.sessionID === sessionID) {
+          yield {
+            kind: "tool-call",
+            id: data.id,
+            name: toolNames.get(data.id) || "",
+            status: "running",
+            input: data.input,
+          };
+          continue;
+        }
+
+        if ((evt.type === "session.tool.success" || evt.type === "session.tool.failed") && data.sessionID === sessionID) {
+          yield {
+            kind: "tool-call",
+            id: data.id,
+            name: toolNames.get(data.id) || "",
+            status: evt.type === "session.tool.success" ? "completed" : "error",
+            output: data.content,
+          };
+          toolNames.delete(data.id);
+          continue;
+        }
+
+        if (evt.type === "session.reasoning.started" && data.sessionID === sessionID) {
+          reasoningBuffer = "";
+          reasoningActive = true;
+          continue;
+        }
+        if (evt.type === "session.reasoning.delta" && data.sessionID === sessionID && reasoningActive) {
+          reasoningBuffer += data.delta || "";
+          continue;
+        }
+        if (evt.type === "session.reasoning.ended" && data.sessionID === sessionID) {
+          reasoningActive = false;
+          if (reasoningBuffer) yield { kind: "reasoning", id: `reasoning-${reasoningOrdinal++}`, text: reasoningBuffer };
+          reasoningBuffer = "";
+          continue;
+        }
+
+        if (evt.type === "permission.asked" && data.sessionID === sessionID) {
+          yield { kind: "permission-asked", requestID: data.id, action: data.action, resources: data.resources || [] };
+          continue;
+        }
+
+        if (evt.type === "session.idle" && data.sessionID === sessionID) {
+          yield { kind: "idle" };
+          continue;
+        }
+      }
+    },
+    async replyPermission(sessionID, requestID, decision) {
+      await ctx.permission.reply({ sessionID, requestID, decision } as any);
+    },
+    async listModels() {
+      try {
+        const result = await ctx.model.list();
+        const models = (result as any)?.data ?? result;
+        return (models as any[]).map((m) => `${m.providerID}/${m.modelID}`);
+      } catch (err: any) {
+        log(`v2 listModels failed: ${err?.message || err}`);
+        return [];
+      }
+    },
+  };
+}
+
+/**
+ * Reads tokens and options, loads the session store, and starts the Socket
+ * Mode worker. Shared between the V1 `server()` and V2 `setup()` entrypoints,
+ * which differ only in where options and the working directory come from.
+ * Returns `false` when the agent should stay disabled (and the caller should
+ * return early without setting up `backend`).
+ */
+function initializeRuntime(options: Record<string, unknown> | undefined, directory: string): boolean {
+  const botToken = (options?.SLACK_BOT_TOKEN as string) || process.env.SLACK_BOT_TOKEN || "";
+  const appToken = (options?.SLACK_APP_TOKEN as string) || process.env.SLACK_APP_TOKEN || "";
+
+  const enabled = process.env.SLACK_AGENT_ENABLED
+    ?? (options?.SLACK_AGENT_ENABLED as string)
+    ?? "true";
+  if (enabled === "false" || enabled === "0") {
+    log("DISABLED — SLACK_AGENT_ENABLED=false");
+    return false;
+  }
+
+  if (!botToken || !appToken) {
+    log("DISABLED — missing tokens");
+    return false;
+  }
+
+  defaultDirectory = expandTilde((options?.DEFAULT_DIRECTORY as string) || process.env.SLACK_DEFAULT_DIRECTORY || directory);
+  agentOverride = (options?.DEFAULT_AGENT as string) || process.env.SLACK_DEFAULT_AGENT || null;
+  if (agentOverride) log(`default agent: ${agentOverride}`);
+  attachBgTimeoutMs = resolveAttachTimeoutMs(options?.ATTACH_TIMEOUT_SEC);
+  log(`attach timeout set to ${attachBgTimeoutMs}ms`);
+  sessionsPath = join(directory, "slack-sessions.json");
+  loadSessions();
+  log(`sessions loaded: ${Object.keys(sessions).length} entries from ${sessionsPath}`);
+
+  const allowedUsersStr = (options?.ALLOWED_USERS as string) || process.env.SLACK_ALLOWED_USERS || "";
+  let emailsToResolve: string[] = [];
+  if (allowedUsersStr) {
+    const entries = allowedUsersStr.split(",").map(u => u.trim()).filter(Boolean);
+    allowedUsers = new Set(entries.filter(e => e.startsWith("U")));
+    emailsToResolve = entries.filter(e => e.includes("@"));
+    log(`allowed users: ${[...allowedUsers].join(", ")}${emailsToResolve.length ? ` + ${emailsToResolve.length} emails to resolve` : ""}`);
+  }
+
+  const workerEnv: Record<string, string> = {
+    SLACK_BOT_TOKEN: botToken,
+    SLACK_APP_TOKEN: appToken,
+  };
+  const caCerts = (options?.NODE_EXTRA_CA_CERTS as string) || process.env.NODE_EXTRA_CA_CERTS || "";
+  if (caCerts) workerEnv.NODE_EXTRA_CA_CERTS = caCerts;
+
+  if (emailsToResolve.length > 0) {
+    allowlistReady = false;
+  }
+  startWorker(workerEnv);
+  if (emailsToResolve.length > 0) {
+    sendIPC({ type: "resolve_emails", emails: emailsToResolve });
+  }
+  log("plugin initialized (hybrid sidecar + persistent sessions)");
+  return true;
+}
+
 const pluginModule: PluginModule = {
   id: "opencode-slack-agent",
   server: async (input: PluginInput, options?: PluginOptions) => {
     log("server() called");
-    if (initialized) return { tool: { slack_status: slackStatusTool } };
+    if (initialized) return { tool: { slack_status: slackStatusTool, slack_test_prompt: slackTestPromptTool } };
     initialized = true;
 
     try {
-    const botToken = (options?.SLACK_BOT_TOKEN as string) || process.env.SLACK_BOT_TOKEN || "";
-    const appToken = (options?.SLACK_APP_TOKEN as string) || process.env.SLACK_APP_TOKEN || "";
+      const started = initializeRuntime(options as Record<string, unknown> | undefined, input.directory);
+      if (!started) return { tool: { slack_status: slackStatusTool, slack_test_prompt: slackTestPromptTool } };
 
-    const enabled = process.env.SLACK_AGENT_ENABLED
-      ?? (options?.SLACK_AGENT_ENABLED as string)
-      ?? "true";
-    if (enabled === "false" || enabled === "0") {
-      log("DISABLED — SLACK_AGENT_ENABLED=false");
-      return { tool: { slack_status: slackStatusTool } };
-    }
+      pluginClient = input.client;
+      backend = createV1Backend(pluginClient);
 
-    if (!botToken || !appToken) {
-      log("DISABLED — missing tokens");
-      return { tool: { slack_status: slackStatusTool } };
-    }
+      return {
+        tool: { slack_status: slackStatusTool, slack_test_prompt: slackTestPromptTool },
+        "permission.ask": async (input: any, output: any) => {
+          const sessionEntry = Object.entries(sessions).find(
+            ([_, s]) => s.sessionId === input.sessionID
+          );
+          if (!sessionEntry) return;
+          const [threadTs, session] = sessionEntry;
 
-    pluginClient = input.client;
-    defaultDirectory = expandTilde((options?.DEFAULT_DIRECTORY as string) || process.env.SLACK_DEFAULT_DIRECTORY || input.directory);
-    agentOverride = (options?.DEFAULT_AGENT as string) || process.env.SLACK_DEFAULT_AGENT || null;
-    if (agentOverride) log(`default agent: ${agentOverride}`);
-    attachBgTimeoutMs = resolveAttachTimeoutMs(options?.ATTACH_TIMEOUT_SEC);
-    log(`attach timeout set to ${attachBgTimeoutMs}ms`);
-    sessionsPath = join(input.directory, "slack-sessions.json");
-    loadSessions();
-    log(`sessions loaded: ${Object.keys(sessions).length} entries from ${sessionsPath}`);
+          pendingPermissions.set(input.id, {
+            permissionId: input.id,
+            sessionId: input.sessionID,
+            threadTs,
+            channel: session.channel,
+            createdAt: Date.now(),
+          });
 
-    const allowedUsersStr = (options?.ALLOWED_USERS as string) || process.env.SLACK_ALLOWED_USERS || "";
-    let emailsToResolve: string[] = [];
-    if (allowedUsersStr) {
-      const entries = allowedUsersStr.split(",").map(u => u.trim()).filter(Boolean);
-      allowedUsers = new Set(entries.filter(e => e.startsWith("U")));
-      emailsToResolve = entries.filter(e => e.includes("@"));
-      log(`allowed users: ${[...allowedUsers].join(", ")}${emailsToResolve.length ? ` + ${emailsToResolve.length} emails to resolve` : ""}`);
-    }
+          let msg = "⚠️ *권한 요청*\n";
+          msg += `\`${input.title}\`\n`;
+          if (input.pattern) {
+            const patterns = Array.isArray(input.pattern) ? input.pattern.join(", ") : input.pattern;
+            msg += `패턴: \`${patterns}\`\n`;
+          }
+          msg += "\n*1.* 허용 (이번만)\n*2.* 항상 허용\n*3.* 거부\n";
+          msg += "_1/y/yes, 2/always, 3/n/no 로 답해주세요_";
 
-    const workerEnv: Record<string, string> = {
-      SLACK_BOT_TOKEN: botToken,
-      SLACK_APP_TOKEN: appToken,
-    };
-    const caCerts = (options?.NODE_EXTRA_CA_CERTS as string) || process.env.NODE_EXTRA_CA_CERTS || "";
-    if (caCerts) workerEnv.NODE_EXTRA_CA_CERTS = caCerts;
+          slackSend(session.channel, msg, threadTs);
+          log(`permission.ask forwarded to slack: ${input.id} (${input.title})`);
 
-    if (emailsToResolve.length > 0) {
-      allowlistReady = false;
-    }
-    startWorker(workerEnv);
-    if (emailsToResolve.length > 0) {
-      sendIPC({ type: "resolve_emails", emails: emailsToResolve });
-    }
-    log("plugin initialized (hybrid sidecar + persistent sessions)");
-
-    return {
-      tool: { slack_status: slackStatusTool },
-      "permission.ask": async (input: any, output: any) => {
-        const sessionEntry = Object.entries(sessions).find(
-          ([_, s]) => s.sessionId === input.sessionID
-        );
-        if (!sessionEntry) return;
-        const [threadTs, session] = sessionEntry;
-
-        pendingPermissions.set(input.id, {
-          permissionId: input.id,
-          sessionId: input.sessionID,
-          threadTs,
-          channel: session.channel,
-          createdAt: Date.now(),
-        });
-
-        let msg = "⚠️ *권한 요청*\n";
-        msg += `\`${input.title}\`\n`;
-        if (input.pattern) {
-          const patterns = Array.isArray(input.pattern) ? input.pattern.join(", ") : input.pattern;
-          msg += `패턴: \`${patterns}\`\n`;
-        }
-        msg += "\n*1.* 허용 (이번만)\n*2.* 항상 허용\n*3.* 거부\n";
-        msg += "_1/y/yes, 2/always, 3/n/no 로 답해주세요_";
-
-        slackSend(session.channel, msg, threadTs);
-        log(`permission.ask forwarded to slack: ${input.id} (${input.title})`);
-
-        output.status = "ask";
-      },
-      dispose: async () => {
-        stopWorker();
-        pluginClient = null;
-        initialized = false;
-        log("shutdown");
-      },
-    };
+          output.status = "ask";
+        },
+        dispose: async () => {
+          stopWorker();
+          pluginClient = null;
+          backend = null;
+          initialized = false;
+          log("shutdown");
+        },
+      };
     } catch (err) {
       stopWorker();
       pluginClient = null;
+      backend = null;
       allowedUsers = null;
       allowlistReady = true;
       initialized = false;
@@ -1429,4 +1694,72 @@ const pluginModule: PluginModule = {
   },
 };
 
-export default pluginModule;
+/**
+ * V2 entrypoint. See `createV2Backend`'s doc comment for the known gap
+ * (forwarding a reply to the agent's `question` tool).
+ */
+async function setupV2(ctx: PluginV2.Context): Promise<PluginV2.Cleanup | void> {
+  log("setup() called (V2)");
+  if (initialized) return;
+  initialized = true;
+
+  try {
+    const started = initializeRuntime(ctx.options as Record<string, unknown> | undefined, ctx.location.directory);
+    if (!started) return;
+
+    backend = createV2Backend(ctx);
+
+    const toolRegistration = await ctx.tool.transform((editor) => {
+      editor.add({
+        name: "slack_status",
+        description: "Slack 에이전트 상태 확인",
+        input: { type: "object", properties: {}, additionalProperties: false },
+        async execute() {
+          const status = worker && !worker.killed ? "running" : "stopped";
+          const sessionCount = Object.keys(sessions).length;
+          return { content: `Slack agent: ${status}, sessions: ${sessionCount}` };
+        },
+      } as any);
+      editor.add({
+        name: "slack_test_prompt",
+        description: "디버그: Slack 없이 메시지 처리 테스트 (세션 생성/프롬프트/이벤트 스트림 확인용)",
+        input: {
+          type: "object",
+          properties: { text: { type: "string" } },
+          required: ["text"],
+          additionalProperties: false,
+        },
+        async execute(input: any) {
+          const output = await runDebugTestPrompt(input.text);
+          return { content: output };
+        },
+      } as any);
+    });
+
+    log("plugin initialized (V2)");
+
+    return async () => {
+      stopWorker();
+      backend = null;
+      initialized = false;
+      await toolRegistration.dispose();
+      log("shutdown (V2)");
+    };
+  } catch (err) {
+    stopWorker();
+    backend = null;
+    allowedUsers = null;
+    allowlistReady = true;
+    initialized = false;
+    log(`setup() failed: ${err}`);
+    throw err;
+  }
+}
+
+export default {
+  ...PluginV2.define({
+    id: "opencode-slack-agent",
+    setup: setupV2,
+  }),
+  server: pluginModule.server,
+};
