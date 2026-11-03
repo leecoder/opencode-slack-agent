@@ -32,6 +32,7 @@ let allowedUsers: Set<string> | null = null;
 let allowlistReady = true;
 let attachBgTimeoutMs = DEFAULT_ATTACH_TIMEOUT_SEC * 1000;
 let cachedBackgroundOutputPath: string | null = null;
+let quietToolCalls = false;
 let seenInboundEventKeys: Map<string, number> = new Map();
 
 type PendingPermission = {
@@ -448,20 +449,22 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
 
           if (evt.name !== "question" && evt.status === "running" && !seenParts.has(evt.id)) {
             seenParts.add(evt.id);
-            const toolName = evt.name || "";
-            const input = (evt.input as any) || {};
-            let detail = toolName;
-            if (input) {
-              const params = Object.entries(input)
-                .filter(([, v]) => v && typeof v === "string" && (v as string).length < 100)
-                .map(([k, v]) => `${k}=${v}`)
-                .slice(0, 2)
-                .join(" ");
-              if (params) detail = `${toolName} ${params}`;
-            }
-            if (detail) {
-              slackSend(channel, `🔧 _${detail}_`, threadTs);
-              log(`stream: 🔧 _${detail}_`);
+            if (!quietToolCalls) {
+              const toolName = evt.name || "";
+              const input = (evt.input as any) || {};
+              let detail = toolName;
+              if (input) {
+                const params = Object.entries(input)
+                  .filter(([, v]) => v && typeof v === "string" && (v as string).length < 100)
+                  .map(([k, v]) => `${k}=${v}`)
+                  .slice(0, 2)
+                  .join(" ");
+                if (params) detail = `${toolName} ${params}`;
+              }
+              if (detail) {
+                slackSend(channel, `🔧 _${detail}_`, threadTs);
+                log(`stream: 🔧 _${detail}_`);
+              }
             }
           }
 
@@ -483,9 +486,11 @@ async function handleMessage(channel: string, text: string, ts: string, messageT
         if (evt.kind === "reasoning") {
           if (!seenParts.has(evt.id)) {
             seenParts.add(evt.id);
-            const snippet = evt.text.length > 200 ? evt.text.slice(0, 200) + "…" : evt.text;
-            slackSend(channel, `💭 ${snippet}`, threadTs);
-            log(`stream: 💭`);
+            if (!quietToolCalls) {
+              const snippet = evt.text.length > 200 ? evt.text.slice(0, 200) + "…" : evt.text;
+              slackSend(channel, `💭 ${snippet}`, threadTs);
+              log(`stream: 💭`);
+            }
           }
           continue;
         }
@@ -1597,6 +1602,9 @@ function initializeRuntime(options: Record<string, unknown> | undefined, directo
   if (agentOverride) log(`default agent: ${agentOverride}`);
   attachBgTimeoutMs = resolveAttachTimeoutMs(options?.ATTACH_TIMEOUT_SEC);
   log(`attach timeout set to ${attachBgTimeoutMs}ms`);
+  const quietStr = (options?.QUIET_TOOL_CALLS as string) ?? process.env.SLACK_QUIET_TOOL_CALLS;
+  quietToolCalls = quietStr === "true" || quietStr === "1";
+  if (quietToolCalls) log("quiet mode: suppressing 🔧 tool-call and 💭 reasoning echoes to Slack");
   sessionsPath = join(directory, "slack-sessions.json");
   loadSessions();
   log(`sessions loaded: ${Object.keys(sessions).length} entries from ${sessionsPath}`);

@@ -37757,6 +37757,7 @@ var allowedUsers = null;
 var allowlistReady = true;
 var attachBgTimeoutMs = DEFAULT_ATTACH_TIMEOUT_SEC * 1e3;
 var cachedBackgroundOutputPath = null;
+var quietToolCalls = false;
 var seenInboundEventKeys = /* @__PURE__ */ new Map();
 var pendingPermissions = /* @__PURE__ */ new Map();
 var pendingQuestions = /* @__PURE__ */ new Map();
@@ -38094,16 +38095,18 @@ ${q.question}
           }
           if (evt.name !== "question" && evt.status === "running" && !seenParts.has(evt.id)) {
             seenParts.add(evt.id);
-            const toolName = evt.name || "";
-            const input = evt.input || {};
-            let detail = toolName;
-            if (input) {
-              const params = Object.entries(input).filter(([, v]) => v && typeof v === "string" && v.length < 100).map(([k, v]) => `${k}=${v}`).slice(0, 2).join(" ");
-              if (params) detail = `${toolName} ${params}`;
-            }
-            if (detail) {
-              slackSend(channel, `\u{1F527} _${detail}_`, threadTs);
-              log2(`stream: \u{1F527} _${detail}_`);
+            if (!quietToolCalls) {
+              const toolName = evt.name || "";
+              const input = evt.input || {};
+              let detail = toolName;
+              if (input) {
+                const params = Object.entries(input).filter(([, v]) => v && typeof v === "string" && v.length < 100).map(([k, v]) => `${k}=${v}`).slice(0, 2).join(" ");
+                if (params) detail = `${toolName} ${params}`;
+              }
+              if (detail) {
+                slackSend(channel, `\u{1F527} _${detail}_`, threadTs);
+                log2(`stream: \u{1F527} _${detail}_`);
+              }
             }
           }
           if (evt.name !== "question") {
@@ -38123,9 +38126,11 @@ ${q.question}
         if (evt.kind === "reasoning") {
           if (!seenParts.has(evt.id)) {
             seenParts.add(evt.id);
-            const snippet = evt.text.length > 200 ? evt.text.slice(0, 200) + "\u2026" : evt.text;
-            slackSend(channel, `\u{1F4AD} ${snippet}`, threadTs);
-            log2(`stream: \u{1F4AD}`);
+            if (!quietToolCalls) {
+              const snippet = evt.text.length > 200 ? evt.text.slice(0, 200) + "\u2026" : evt.text;
+              slackSend(channel, `\u{1F4AD} ${snippet}`, threadTs);
+              log2(`stream: \u{1F4AD}`);
+            }
           }
           continue;
         }
@@ -39079,6 +39084,9 @@ function initializeRuntime(options2, directory) {
   if (agentOverride) log2(`default agent: ${agentOverride}`);
   attachBgTimeoutMs = resolveAttachTimeoutMs(options2?.ATTACH_TIMEOUT_SEC);
   log2(`attach timeout set to ${attachBgTimeoutMs}ms`);
+  const quietStr = options2?.QUIET_TOOL_CALLS ?? process.env.SLACK_QUIET_TOOL_CALLS;
+  quietToolCalls = quietStr === "true" || quietStr === "1";
+  if (quietToolCalls) log2("quiet mode: suppressing \u{1F527} tool-call and \u{1F4AD} reasoning echoes to Slack");
   sessionsPath = join(directory, "slack-sessions.json");
   loadSessions();
   log2(`sessions loaded: ${Object.keys(sessions).length} entries from ${sessionsPath}`);

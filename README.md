@@ -75,6 +75,7 @@ Add plugin with tokens to `~/.config/opencode/opencode.json`:
 | `DEFAULT_AGENT` | — | Agent name to use for prompts in Slack threads. Reads plugin option first, then `SLACK_DEFAULT_AGENT` env var. Can be overridden per-message with `@<agent>` or per-thread with `!agent`; cleared by `!agent reset`. Useful when the global opencode default agent has an identity you don't want exposed in Slack (e.g., a chat-facing persona) |
 | `ALLOWED_USERS` | — | Comma-separated Slack user IDs or emails. If unset, everyone can use the bot |
 | `ATTACH_TIMEOUT_SEC` | 600 | Timeout (seconds) for `!attach bg_xxx` polling. Reads plugin option first, then env var fallback. Invalid/non-positive values fall back to 600 |
+| `QUIET_TOOL_CALLS` | `false` | Suppresses the per-tool-call 🔧 progress line and the 💭 reasoning snippets in Slack. Final assistant replies, questions, permission prompts, and background-task notices still post. Reads plugin option first, then `SLACK_QUIET_TOOL_CALLS` env var. Accepts `"true"` or `"1"`; anything else keeps streaming on |
 
 ### 4. Run
 
@@ -96,8 +97,8 @@ opencode serve --port 4096
 - No prefix → uses default or `!agent` setting
 
 ### Real-time Streaming
-- 🔧 Tool execution status shown in thread
-- 💭 Reasoning/thinking (when model supports it)
+- 🔧 Tool execution status shown in thread (disable with `QUIET_TOOL_CALLS`)
+- 💭 Reasoning/thinking (when model supports it; disable with `QUIET_TOOL_CALLS`)
 - 📋 Todo/plan updates forwarded to Slack
 
 ### Long Response Handling
