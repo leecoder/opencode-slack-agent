@@ -38,6 +38,24 @@ opencode plugin opencode-slack-agent --global
 
 Add plugin with tokens to `~/.config/opencode/opencode.json`:
 
+**OpenCode V2**
+
+```json
+{
+  "plugins": [
+    {
+      "package": "opencode-slack-agent",
+      "options": {
+        "SLACK_BOT_TOKEN": "xoxb-...",
+        "SLACK_APP_TOKEN": "xapp-..."
+      }
+    }
+  ]
+}
+```
+
+**OpenCode V1**
+
 ```json
 {
   "plugin": [
@@ -89,6 +107,10 @@ opencode serve --port 4096
 ### Permission & Question Forwarding
 - Agent permission requests → forwarded to Slack thread (1/2/3 to allow/always/reject)
 - Agent questions → forwarded with options, reply to answer
+  - On OpenCode V2, forwarding the question to Slack works, but forwarding the Slack
+    reply back does not: the V2 plugin API has no way to answer the agent's `question`
+    tool. The bot tells the user to answer in the OpenCode session directly. See
+    [OpenCode V2](#opencode-v2) below.
 
 ### Commands
 
@@ -106,6 +128,37 @@ opencode serve --port 4096
 | `!attach ses_xxx` | Attach existing session (URL paste supported) |
 | `!attach bg_xxx` | Attach and poll a background task ID (`bg_[A-Za-z0-9_-]+`) |
 | `!reset` | Reset current thread session |
+
+## OpenCode V2
+
+This plugin supports both OpenCode V1 and V2 from the same package, following
+[OpenCode's V1/V2 dual-support pattern](https://opencode.ai/v2/docs/build/plugins/migrate-v1#support-v1-and-v2-from-one-package).
+V2's server API renamed or restructured most endpoints this plugin uses, so the V1
+and V2 code paths each wrap their own client and translate it into the same internal
+shape; see `createV1Backend` and `createV2Backend` in `src/plugin.ts`.
+
+Known gaps on V2:
+
+- **Question tool replies** are not forwarded. The V2 plugin API has no
+  `ctx.session.form.*` equivalent reachable from a plugin, which is what would be
+  needed to answer the agent's `question` tool. Forwarding the question to Slack
+  still works; answer it directly in the OpenCode session instead of replying in
+  Slack.
+- **Plan/todo updates** are not rendered as a dedicated checklist. V2 removed the
+  `todo.updated` event; the `todo` tool now surfaces through the same generic
+  tool-call events as any other tool, so its calls show up as a plain 🔧 progress
+  line instead of a formatted plan.
+- **`!agent`/`@agent` overrides** switch the session's agent going forward
+  (`ctx.session.switchAgent`), rather than applying to only the one message, because
+  V2 has no per-message agent override.
+
+### Debug tool
+
+`slack_test_prompt` (alongside `slack_status`) runs the same session-creation,
+prompting, and turn-event handling `handleMessage` normally runs for a Slack
+message, without a Slack connection. Call it with `{ "text": "..." }` from an
+OpenCode session to verify the plugin against a real server; everything that would
+have gone to Slack is logged to `/tmp/slack-agent-plugin.log` instead.
 
 ## Architecture
 
